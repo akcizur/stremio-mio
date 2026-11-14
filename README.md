@@ -1,27 +1,72 @@
 # MIO · Media Interface Options
 
-MIO je návrh vlastní multiplatformní mediální aplikace pro **web, iOS, Android, Windows a Linux**.
+MIO je vlastní multiplatformní mediální aplikace pro **web, iOS, Android, Windows a Linux**.
 
-Cíl: jednotný katalog filmů a seriálů, osobní knihovna, vyhledávání, historie, přehrávač, IPTV/EPG, YouTube integrace, lokální média a rozšiřitelné konektory.
+Cíl: sjednotit katalog filmů a seriálů, osobní knihovnu, vyhledávání, historii, přehrávač, IPTV/EPG, YouTube integraci, lokální média a rozšiřitelné konektory.
 
-Projekt je ve fázi architektonického návrhu. Zatím zde není implementováno aplikační UI ani přehrávač.
+Projekt postupuje po funkčních vertikálních částech. Web je první implementační platforma; nativní přehrávače zůstávají samostatnými adaptéry pro jednotlivé systémy.
 
-## Architektura
+## Aktuální stav
 
-Začínáme web-first přístupem: React + TypeScript + Vite. Mobilní aplikace jsou plánovány přes Capacitor s nativním AVPlayerem na iOS a Media3/ExoPlayerem na Androidu. Pro Windows a Linux je kandidátem Tauri 2 s MPV/libmpv, jehož finální výběr závisí na přehrávačovém PoC.
+- [x] Architektonický výzkum a dokumentace
+- [x] Počáteční React + TypeScript + Vite web shell
+- [x] Sdílený kontrakt přehrávače a validace stream URL
+- [x] Web Player Lab: přímé URL a HLS přes nativní podporu / HLS.js
+- [x] Základní CI: typecheck, unit testy a production build
+- [ ] Reálný playback test na zařízeních a prohlížečích
+- [ ] iOS AVPlayer bridge
+- [ ] Android Media3 bridge
+- [ ] Windows/Linux MPV/libmpv PoC
+- [ ] Katalogová databáze, IPTV/EPG a autorizované konektory
+
+## Technologie
+
+| Vrstva | Základ |
+|---|---|
+| Web UI | React 19 + TypeScript + Vite |
+| Web HLS | hls.js + nativní HLS podle prohlížeče |
+| Sdílené rozhraní | @mio/player-contract |
+| Mobilní aplikace | Capacitor + AVPlayer / Media3, plánováno |
+| Desktop | Tauri 2 + MPV/libmpv PoC, plánováno |
+
+Desktopový shell a mobilní player nejsou zatím implementované. Jejich architekturu potvrdíme až po technických prototypech.
+
+## Spuštění
+
+Požadavky: Node.js 26.13.1 LTS a npm 11+.
+
+Z kořene repozitáře:
+
+    npm install
+    npm run dev
+
+Kontrola projektu:
+
+    npm run typecheck
+    npm test
+    npm run build
+    npm run check
+
+Vite spustí web na http://127.0.0.1:5173.
 
 ## Dokumentace
 
-Podrobný výzkum, platformní strategie, technické porovnání, playback návrh, datová architektura, integrace, compliance a roadmapa:
+➡️ [Architektonická dokumentace](docs/architecture/README.md)
 
-➡️ [MIO Architecture Documentation](docs/architecture/README.md)
+Hlavní dokumenty:
+- [Platformní strategie](docs/architecture/PLATFORM_STRATEGY.md)
+- [Srovnání technologií](docs/architecture/TECHNOLOGY_DECISIONS.md)
+- [Přehrávání, streamy a DRM](docs/architecture/MEDIA_PLAYBACK.md)
+- [Systémová architektura](docs/architecture/SYSTEM_ARCHITECTURE.md)
+- [Integrace zdrojů](docs/architecture/INTEGRATIONS.md)
+- [Licence a compliance](docs/architecture/LICENSING_AND_COMPLIANCE.md)
+- [Roadmapa](docs/architecture/ROADMAP.md)
+- [Architektonická rozhodnutí](docs/architecture/ADR/README.md)
 
-## Stav
+## Důležitá omezení prvního webového prototypu
 
-- [x] Počáteční architektonický výzkum a dokumentace
-- [ ] Player proof-of-concept na webu, iOS, Androidu, Windows a Linuxu
-- [ ] Schválení finálního stacku na základě PoC
-- [ ] Web MVP
-- [ ] Mobilní a desktopové shell builds
+Player Lab ověřuje pouze webovou větev. HLS zdroj musí povolit CORS. MPEG-DASH, DRM, vlastní autentizační hlavičky, externí titulky a nativní playback bridge nejsou hotové funkce. Konektory se budou připojovat pouze ke zdrojům, které má uživatel právo používat.
 
-Dokumentace odděluje ověřené vlastnosti platforem od návrhů, které je nutné potvrdit prototypem.
+## Vývoj
+
+Před přidáním nového provideru nebo player enginu nejprve definuj jeho kontrakt v packages a otestuj jej bez závislosti na konkrétním UI.
