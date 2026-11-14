@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { EpgGrid } from "./EpgGrid";
 import {
   IptvLocalRepository,
   parseM3uPlaylist,
@@ -299,6 +300,8 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
           <p>Importuj M3U/M3U8 soubor. MIO načte názvy, skupiny a TVG identifikátory kanálů.</p>
         </div>
       )}
+
+      {guide && channels.length > 0 && <EpgGrid channels={visibleChannels} guide={guide} now={now} />}
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>
