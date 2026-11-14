@@ -45,7 +45,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-          cache: gradle
 
       - name: Install Android SDK packages
         run: |
@@ -106,7 +105,7 @@ jobs:
       - name: Build iOS Simulator app
         run: |
           xcodebuild \
-            -workspace apps/mobile/ios/App/App.xcworkspace \
+            -project apps/mobile/ios/App/App.xcodeproj \
             -scheme App \
             -sdk iphonesimulator \
             -configuration Debug \
