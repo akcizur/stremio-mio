@@ -41,6 +41,23 @@ MIO bude umět importovat playlist, který uživatel vlastní nebo je oprávněn
 
 M3U playlist je seznam položek. HLS M3U8 manifest je playlist segmentů / variant streamu. Nejsou totéž, i když používají podobný textový formát. Parsování playlistu nesmí předpokládat, že každá URL je HLS.
 
+### Aktuální implementace MIO
+
+V balíčku `@mio/iptv` existuje parser M3U/M3U8 a lokální importní obrazovka. První webová verze:
+- čte soubor lokálně v prohlížeči, limit 10 MB;
+- zpracuje EXTINF, tvg-id, tvg-name, tvg-logo a group-title;
+- zobrazuje vyhledávání a filtrování skupin;
+- ukládá jeden aktuální playlist do IndexedDB;
+- předá vybranou HTTP(S) stream URL do webového Player Lab.
+
+V této fázi se nespouští vzdálené playlist URL na pozadí, neaplikují se hlavičky EXT-X/EXTVLCOPT a nejsou podporované RTSP, DRM ani vlastní autentizační hlavičky.
+
+### EPG / XMLTV implementace
+
+MIO používá `fast-xml-parser` 5.12.1 (MIT) pro syntaktické ověření a parsování XMLTV. Běžná externí XMLTV DTD je ignorována, nikoli stahována. Vlastní DTD/entity deklarace jsou odmítnuty a soubor má limit 20 MB. Pořady bez explicitního UTC offsetu nebo s neplatným časovým intervalem jsou přeskočeny, aby nedocházelo k tichému posunu programu.
+
+M3U `tvg-id` se páruje s XMLTV `channel id` přesnou shodou. Automatické fuzzy párování ani ruční editor mapování zatím nejsou implementované.
+
 Bezpečnost:
 - playlist může obsahovat privátní nebo podepsané URL a přístupové tokeny;
 - neodesílat obsah playlistu na externí analytiku;

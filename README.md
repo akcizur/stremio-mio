@@ -17,7 +17,10 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 - [ ] iOS AVPlayer bridge
 - [ ] Android Media3 bridge
 - [ ] Windows/Linux MPV/libmpv PoC
-- [ ] Katalogová databáze, IPTV/EPG a autorizované konektory
+- [x] Lokální M3U/M3U8 import, parser kanálů a skupin
+- [x] XMLTV import, UTC normalizace a párování podle tvg-id
+- [x] Lokální IndexedDB persistence playlistu a EPG
+- [ ] Metadata katalog a autorizované externí konektory
 
 ## Technologie
 

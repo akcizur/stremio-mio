@@ -309,7 +309,7 @@ function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }:
         </div>
         <div className="module-grid">
           <ModuleCard number="01" title="Katalog & metadata" detail="Filmy, seriály, epizody a sjednocené ID." state="PLÁNOVÁNO" />
-          <ModuleCard number="02" title="IPTV & program" detail="Playlisty M3U, kanály a XMLTV EPG." state="M3U PROTOTYP" />
+          <ModuleCard number="02" title="IPTV & program" detail="Playlisty M3U, kanály a XMLTV EPG." state="M3U + EPG" />
           <ModuleCard number="03" title="Nativní přehrávání" detail="AVPlayer, Media3 a desktopový MPV PoC." state="PROTOTYP" />
         </div>
       </section>

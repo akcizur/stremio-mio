@@ -71,13 +71,23 @@ První implementace:
 
 ## Fáze 4 · IPTV a EPG
 
-- import více M3U playlistů;
-- kanály, skupiny, vyhledávání, favorites;
-- XMLTV importer a normalizace času;
-- program guide, current/next programme, channel mapping;
-- aktualizace podle nastavení uživatele.
+**Stav: první lokální vertical slice hotový; plná fáze je rozpracovaná.**
 
-**Akceptace:** testy DST/UTC, velký feed, nevalidní XML, duplicity kanálů, nedostupný stream a expired credentials.
+- [x] import jednoho lokálního M3U/M3U8 playlistu;
+- [x] kanály, základní skupiny, vyhledávání a filtrování;
+- [x] ochrana proti nepovoleným protokolům a URL userinfo;
+- [x] lokální uložení playlistu v IndexedDB;
+- [x] XMLTV import do 20 MB;
+- [x] převod časů s explicitním UTC offsetem do UTC;
+- [x] zobrazení aktuálního a následujícího pořadu;
+- [x] párování kanálů podle přesné shody tvg-id a XMLTV channel id;
+- [ ] více pojmenovaných playlistů a slučování;
+- [ ] plánované aktualizace vzdálených playlistů a EPG;
+- [ ] ruční mapování kanálů bez shodného tvg-id;
+- [ ] plný EPG grid, detail pořadu a časová osa;
+- [ ] testy velkých produkčních feedů, duplicit a chybějících dat.
+
+**Automatické stahování zdrojů a synchronizace zatím nejsou implementované.** Import souboru probíhá lokálně.
 
 ## Fáze 5 · Stremio kompatibilita a pluginy
 
