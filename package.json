@@ -14,7 +14,13 @@
     "preview": "npm run preview --workspace=@mio/web",
     "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "mobile:prepare": "npm run build --workspace=@mio/web && npm run sync --workspace=@mio/mobile",
+    "mobile:add:android": "npm run add:android --workspace=@mio/mobile",
+    "mobile:add:ios": "npm run add:ios --workspace=@mio/mobile",
+    "desktop:dev": "npm run dev --workspace=@mio/desktop",
+    "desktop:build": "npm run build --workspace=@mio/desktop",
+    "desktop:check:rust": "npm run check:rust --workspace=@mio/desktop"
   },
   "devDependencies": {
     "@types/react": "19.2.7",

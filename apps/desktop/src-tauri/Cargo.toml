@@ -1,0 +1,17 @@
+[package]
+name = "mio-desktop"
+version = "0.1.0"
+description = "MIO desktop shell"
+authors = ["MIO"]
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "mio_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.2" }
+
+[dependencies]
+tauri = { version = "2.12.3" }

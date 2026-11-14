@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MIO",
+  "version": "0.1.0",
+  "identifier": "cz.ruzickajakub.mio",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../.. run dev --workspace=@mio/web",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm --prefix ../.. run build --workspace=@mio/web",
+    "frontendDist": "../../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "MIO · Media Interface Options",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 920,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' ipc: http://ipc.localhost https:; media-src 'self' blob: https:; script-src 'self'; worker-src 'self' blob:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis",
+      "msi",
+      "deb",
+      "appimage"
+    ],
+    "category": "Entertainment",
+    "shortDescription": "MIO media library and player",
+    "longDescription": "MIO is a cross-platform media interface for personal libraries, live TV and authorized media sources."
+  }
+}

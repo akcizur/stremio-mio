@@ -10,3 +10,16 @@ Thumbs.db
 .env.*
 !.env.example
 *.local
+
+# Capacitor generated native projects
+apps/mobile/android/.gradle/
+apps/mobile/android/.idea/
+apps/mobile/android/**/build/
+apps/mobile/android/local.properties
+apps/mobile/ios/App/Pods/
+apps/mobile/ios/DerivedData/
+apps/mobile/ios/build/
+apps/mobile/ios/*.xcworkspace/xcuserdata/
+
+# Tauri / Rust build output
+apps/desktop/src-tauri/target/
