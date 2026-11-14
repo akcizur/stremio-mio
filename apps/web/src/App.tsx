@@ -290,6 +290,8 @@ export function App() {
               onPlayDemo={playDemo}
               onOpenIptv={() => setActiveSection("iptv")}
               searchQuery={searchQuery}
+              historyItems={historyItems}
+              onPlayHistory={playHistoryItem}
             />
           )}
 
@@ -338,9 +340,11 @@ interface DiscoverProps {
   onPlayDemo: (title?: string) => void;
   onOpenIptv: () => void;
   searchQuery: string;
+  historyItems: PlaybackHistoryEntry[];
+  onPlayHistory: (item: PlaybackHistoryEntry) => void;
 }
 
-function Discover({ cards, savedIds, onToggleSaved, onPlayDemo, onOpenIptv, searchQuery }: DiscoverProps) {
+function Discover({ cards, savedIds, onToggleSaved, onPlayDemo, onOpenIptv, searchQuery, historyItems, onPlayHistory }: DiscoverProps) {
   return (
     <div className="page-stack">
       <section className="hero-panel">
@@ -360,6 +364,37 @@ function Discover({ cards, savedIds, onToggleSaved, onPlayDemo, onOpenIptv, sear
         <div className="hero-side-note"><span>01</span><i /> ONE INTERFACE<br />MULTIPLE SOURCES</div>
         <div className="hero-bottom-label">MIO / LOCAL-FIRST MEDIA WORKSPACE</div>
       </section>
+
+      {historyItems.length > 0 && (
+        <section className="section-block continue-section">
+          <div className="section-heading">
+            <div><span className="section-kicker">NAPOSLEDY PŘEHRÁVANÉ</span><h2>Pokračovat ve sledování</h2></div>
+            <span className="demo-label">ULOŽENO LOKÁLNĚ</span>
+          </div>
+          <div className="continue-grid">
+            {historyItems.slice(0, 4).map((item) => {
+              const resumable = isResumable(item);
+              const progress = resumable && item.durationSeconds
+                ? Math.min(100, Math.max(0, item.positionSeconds / item.durationSeconds * 100))
+                : 0;
+              return (
+                <button className="continue-card" type="button" key={item.id} onClick={() => onPlayHistory(item)}>
+                  <span className="continue-art">
+                    <span>{item.kind === "hls" ? "HLS" : item.kind === "dash" ? "DASH" : "MEDIA"}</span>
+                  </span>
+                  <span className="continue-copy">
+                    <strong>{item.title}</strong>
+                    <small>{resumable && item.durationSeconds
+                      ? formatPlaybackTime(item.positionSeconds) + " / " + formatPlaybackTime(item.durationSeconds)
+                      : "Přehrát znovu"}</small>
+                  </span>
+                  {resumable && <span className="continue-progress"><span style={{ width: progress + "%" }} /></span>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="section-block">
         <div className="section-heading">
@@ -389,16 +424,6 @@ function Discover({ cards, savedIds, onToggleSaved, onPlayDemo, onOpenIptv, sear
         <p className="data-disclaimer">Katalogové karty a metadata jsou ukázková data. Přehrávání používá veřejný HLS testovací klip; IPTV demo má samostatný ukázkový playlist a dynamické EPG.</p>
       </section>
 
-      <section className="section-block">
-        <div className="section-heading">
-          <div><span className="section-kicker">STAV VÝVOJE</span><h2>Jedna aplikace. Více světů.</h2></div>
-        </div>
-        <div className="module-grid">
-          <ModuleCard number="01" title="Katalog & metadata" detail="Filmy, seriály, epizody a sjednocené ID." state="PLÁNOVÁNO" />
-          <ModuleCard number="02" title="IPTV & program" detail="Playlisty M3U, kanály a XMLTV EPG." state="M3U + EPG" />
-          <ModuleCard number="03" title="Nativní přehrávání" detail="AVPlayer, Media3 a desktopový MPV PoC." state="PROTOTYP" />
-        </div>
-      </section>
     </div>
   );
 }
