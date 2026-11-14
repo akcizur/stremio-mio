@@ -55,7 +55,8 @@ První implementace:
 - vytvořit canonical MediaItem / Episode / Channel / Source modely;
 - přidat metadata adapter (nejprve test fixture, poté TMDB po vyřešení klíčů a podmínek);
 - lokální IndexedDB storage;
-- watchlist, favourites, watched state, history a continue watching;
+- [x] lokální playback historie a continue watching pro podporované VOD streamy;
+- watchlist, favourites, watched state a JSON export/import;
 - JSON export/import.
 
 **Akceptace:** data zůstanou dostupná po restartu a bez připojení; export lze obnovit do čisté instalace; chybná externí data nepoškodí knihovnu.

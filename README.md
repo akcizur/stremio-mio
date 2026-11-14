@@ -20,8 +20,9 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 - [ ] Windows/Linux MPV/libmpv PoC
 - [x] Lokální M3U/M3U8 import, parser kanálů a skupin
 - [x] XMLTV import, UTC normalizace a párování podle tvg-id
-- [x] Čtyřhodinová EPG časová osa a detail pořadu
-- [x] Lokální IndexedDB persistence playlistu a EPG
+- [x] Celodenní EPG časová osa a detail pořadu
+- [x] Lokální IndexedDB persistence playlistů a EPG
+- [x] Lokální historie přehrávání a pokračování od uložené pozice
 - [ ] Metadata katalog a autorizované externí konektory
 
 ## Technologie

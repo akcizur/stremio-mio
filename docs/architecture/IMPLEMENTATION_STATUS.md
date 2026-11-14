@@ -35,7 +35,7 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 - [x] přidání/odebrání ukázkových titulů
 - [x] načtení po obnovení stránky
 - [ ] model skutečného MediaItem, epizod a provider IDs
-- [ ] watch progress z player session
+- [x] lokální playback historie s automatickým ukládáním pozice a obnovením VOD
 - [ ] JSON export/import
 
 ## IPTV a EPG

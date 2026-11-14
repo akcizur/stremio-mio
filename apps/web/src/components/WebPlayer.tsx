@@ -4,6 +4,8 @@ import type { PlayableSource, PlaybackStatus } from "@mio/player-contract";
 
 interface WebPlayerProps {
   source: PlayableSource | null;
+  startAtSeconds: number;
+  onProgress: (positionSeconds: number, durationSeconds: number | null) => void;
 }
 
 const statusLabels: Record<PlaybackStatus, string> = {
@@ -18,8 +20,10 @@ const statusLabels: Record<PlaybackStatus, string> = {
   unsupported: "Nepodporovaný formát"
 };
 
-export function WebPlayer({ source }: WebPlayerProps) {
+export function WebPlayer({ source, startAtSeconds, onProgress }: WebPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
   const [status, setStatus] = useState<PlaybackStatus>("idle");
   const [message, setMessage] = useState("Vlož testovací URL a načti stream.");
 
@@ -28,21 +32,48 @@ export function WebPlayer({ source }: WebPlayerProps) {
     if (!video) return;
 
     let hls: Hls | null = null;
+    let lastProgressAt = 0;
+    let lastReportedPosition = 0;
+    let resumePositionApplied = startAtSeconds <= 0;
+
+    const reportProgress = (force = false) => {
+      const position = video.currentTime;
+      if (!Number.isFinite(position)) return;
+      const now = Date.now();
+      const movedBackwards = position < lastReportedPosition - 5;
+      if (!force && !movedBackwards && now - lastProgressAt < 15_000) return;
+
+      lastProgressAt = now;
+      lastReportedPosition = position;
+      const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null;
+      onProgressRef.current(position, duration);
+    };
+
+    const applyResumePosition = () => {
+      if (resumePositionApplied || startAtSeconds <= 0 || !Number.isFinite(video.duration)) return;
+      video.currentTime = Math.min(startAtSeconds, Math.max(0, video.duration - 1));
+      resumePositionApplied = true;
+    };
+
     setMessage(source ? "Připravuji přehrávač…" : "Vlož testovací URL a načti stream.");
     setStatus(source ? "loading" : "idle");
 
     const handleLoaded = () => {
+      applyResumePosition();
       setStatus("ready");
       setMessage("Stream je připraven. Stiskni přehrát.");
     };
     const handlePlaying = () => {
       setStatus("playing");
       setMessage("Video běží.");
+      reportProgress(true);
     };
+    const handleTimeUpdate = () => reportProgress();
     const handlePause = () => {
       if (!video.ended && video.currentTime > 0) {
         setStatus("paused");
         setMessage("Přehrávání je pozastavené.");
+        reportProgress(true);
       }
     };
     const handleWaiting = () => {
@@ -52,6 +83,7 @@ export function WebPlayer({ source }: WebPlayerProps) {
     const handleEnded = () => {
       setStatus("ended");
       setMessage("Přehrávání skončilo.");
+      reportProgress(true);
     };
     const handleError = () => {
       setStatus("error");
@@ -61,6 +93,7 @@ export function WebPlayer({ source }: WebPlayerProps) {
     video.addEventListener("loadedmetadata", handleLoaded);
     video.addEventListener("canplay", handleLoaded);
     video.addEventListener("playing", handlePlaying);
+    video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("pause", handlePause);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("ended", handleEnded);
@@ -70,6 +103,7 @@ export function WebPlayer({ source }: WebPlayerProps) {
       video.removeEventListener("loadedmetadata", handleLoaded);
       video.removeEventListener("canplay", handleLoaded);
       video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("ended", handleEnded);
@@ -118,7 +152,7 @@ export function WebPlayer({ source }: WebPlayerProps) {
     }
 
     return cleanup;
-  }, [source]);
+  }, [source, startAtSeconds]);
 
   return (
     <div className="player-frame">

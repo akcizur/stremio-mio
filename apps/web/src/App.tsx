@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import type { LibraryEntry } from "@mio/library";
-import { IndexedDbLibraryRepository } from "@mio/library";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { LibraryEntry, PlaybackHistoryEntry } from "@mio/library";
+import { IndexedDbLibraryRepository, sortPlaybackHistory } from "@mio/library";
 import type { M3uChannel } from "@mio/iptv";
 import type { PlayableSource } from "@mio/player-contract";
 import { parsePlayableUrl } from "@mio/player-contract";
@@ -36,6 +36,25 @@ const mediaCards: MediaCard[] = [
 const demoHlsUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 const libraryRepository = new IndexedDbLibraryRepository();
 
+function formatPlaybackTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  return hours > 0
+    ? hours + ":" + String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0")
+    : minutes + ":" + String(remainder).padStart(2, "0");
+}
+
+function isResumable(item: PlaybackHistoryEntry): boolean {
+  return item.durationSeconds !== null &&
+    Number.isFinite(item.durationSeconds) &&
+    item.durationSeconds > 30 &&
+    item.positionSeconds > 10 &&
+    item.positionSeconds < item.durationSeconds - 30;
+}
+
 function sectionTitle(section: SectionId): string {
   return navigation.find((item) => item.id === section)?.label ?? "Nastavení";
 }
@@ -49,13 +68,18 @@ export function App() {
   const [libraryItems, setLibraryItems] = useState<LibraryEntry[]>([]);
   const [libraryReady, setLibraryReady] = useState(false);
   const [libraryError, setLibraryError] = useState("");
+  const [historyItems, setHistoryItems] = useState<PlaybackHistoryEntry[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [resumeAtSeconds, setResumeAtSeconds] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
-    libraryRepository.list()
-      .then((items) => {
-        if (!cancelled) setLibraryItems(items);
+    Promise.all([libraryRepository.list(), libraryRepository.listHistory()])
+      .then(([items, history]) => {
+        if (cancelled) return;
+        setLibraryItems(items);
+        setHistoryItems(history);
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -63,7 +87,10 @@ export function App() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLibraryReady(true);
+        if (!cancelled) {
+          setLibraryReady(true);
+          setHistoryReady(true);
+        }
       });
 
     return () => {
@@ -114,7 +141,29 @@ export function App() {
     }
   }
 
-  function loadStream(value: string, title?: string) {
+  const handlePlaybackProgress = useCallback((positionSeconds: number, durationSeconds: number | null) => {
+    if (!source) return;
+    const entry: PlaybackHistoryEntry = {
+      id: source.id,
+      title: source.title || source.uri,
+      uri: source.uri,
+      kind: source.kind,
+      lastPlayedAt: Date.now(),
+      positionSeconds: Math.max(0, positionSeconds),
+      durationSeconds
+    };
+
+    void libraryRepository.putHistory(entry).then(() => {
+      setHistoryItems((items) => sortPlaybackHistory([
+        ...items.filter((item) => item.id !== entry.id),
+        entry
+      ]));
+    }).catch((error: unknown) => {
+      setLibraryError(error instanceof Error ? error.message : "Historii přehrávání se nepodařilo uložit.");
+    });
+  }, [source]);
+
+  function loadStream(value: string, title?: string, startAtSeconds = 0) {
     const result = parsePlayableUrl(value);
     if (!result.ok) {
       setPlayerMessage(result.error);
@@ -122,6 +171,7 @@ export function App() {
       return;
     }
 
+    setResumeAtSeconds(Math.max(0, startAtSeconds));
     setSource({ ...result.source, ...(title ? { title } : {}) });
     setPlayerMessage("");
     setActiveSection("player");
@@ -129,6 +179,30 @@ export function App() {
 
   function playChannel(channel: M3uChannel) {
     loadStream(channel.url, channel.name);
+  }
+
+  async function removeHistoryItem(id: string) {
+    try {
+      await libraryRepository.removeHistory(id);
+      setHistoryItems((items) => items.filter((item) => item.id !== id));
+      setLibraryError("");
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "Položku historie se nepodařilo odebrat.");
+    }
+  }
+
+  async function clearPlaybackHistory() {
+    try {
+      await libraryRepository.clearHistory();
+      setHistoryItems([]);
+      setLibraryError("");
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "Historii se nepodařilo vymazat.");
+    }
+  }
+
+  function playHistoryItem(item: PlaybackHistoryEntry) {
+    loadStream(item.uri, item.title, isResumable(item) ? item.positionSeconds : 0);
   }
 
   return (
@@ -220,6 +294,11 @@ export function App() {
               ready={libraryReady}
               error={libraryError}
               onRemove={removeFromLibrary}
+              historyItems={historyItems}
+              historyReady={historyReady}
+              onPlayHistory={playHistoryItem}
+              onRemoveHistory={removeHistoryItem}
+              onClearHistory={clearPlaybackHistory}
             />
           )}
 
@@ -230,6 +309,8 @@ export function App() {
               urlDraft={urlDraft}
               source={source}
               message={playerMessage}
+              startAtSeconds={resumeAtSeconds}
+              onProgress={handlePlaybackProgress}
               onDraftChange={setUrlDraft}
               onLoad={loadStream}
               onLoadDemo={() => { setUrlDraft(demoHlsUrl); loadStream(demoHlsUrl, "Mux HLS test stream"); }}
@@ -319,12 +400,22 @@ function LibraryScreen({
   items,
   ready,
   error,
-  onRemove
+  onRemove,
+  historyItems,
+  historyReady,
+  onPlayHistory,
+  onRemoveHistory,
+  onClearHistory
 }: {
   items: LibraryEntry[];
   ready: boolean;
   error: string;
   onRemove: (id: string) => void;
+  historyItems: PlaybackHistoryEntry[];
+  historyReady: boolean;
+  onPlayHistory: (item: PlaybackHistoryEntry) => void;
+  onRemoveHistory: (id: string) => void;
+  onClearHistory: () => void;
 }) {
   return (
     <div className="page-stack library-view">
@@ -353,6 +444,51 @@ function LibraryScreen({
           ))}
         </div>
       )}
+
+      <section className="history-section">
+        <div className="history-heading">
+          <div><span className="section-kicker">LOKÁLNÍ PLAYBACK · INDEXEDDB</span><h2>Pokračovat ve sledování</h2></div>
+          {historyItems.length > 0 && <button className="text-button" type="button" onClick={onClearHistory}>Vymazat historii</button>}
+        </div>
+        {!historyReady && <p className="history-empty">Načítám historii přehrávání…</p>}
+        {historyReady && historyItems.length === 0 && (
+          <div className="history-empty">
+            <strong>Zatím tu nic není</strong>
+            <span>Po spuštění streamu se zde objeví poslední přehrávané položky. Pozice se ukládá automaticky.</span>
+          </div>
+        )}
+        {historyReady && historyItems.length > 0 && (
+          <div className="history-list">
+            {historyItems.slice(0, 12).map((item) => {
+              const resumable = isResumable(item);
+              const progress = resumable && item.durationSeconds
+                ? Math.min(100, Math.max(0, item.positionSeconds / item.durationSeconds * 100))
+                : 0;
+              return (
+                <article className="history-row" key={item.id}>
+                  <div className="history-art">{item.kind === "hls" ? "◉" : item.kind === "dash" ? "▣" : "▶"}</div>
+                  <div className="history-copy">
+                    <strong>{item.title}</strong>
+                    <span>{new Date(item.lastPlayedAt).toLocaleString("cs-CZ", { dateStyle: "short", timeStyle: "short" })}</span>
+                    {resumable && item.durationSeconds !== null ? (
+                      <div className="history-progress-wrap">
+                        <div className="history-progress" role="progressbar" aria-label={"Pozice přehrávání: " + item.title} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+                          <span style={{ width: progress + "%" }} />
+                        </div>
+                        <small>{formatPlaybackTime(item.positionSeconds)} / {formatPlaybackTime(item.durationSeconds)}</small>
+                      </div>
+                    ) : (
+                      <small className="history-live-label">{item.durationSeconds === null ? "Živé vysílání nebo bez známé délky" : "Dokončeno / bez uložené pozice"}</small>
+                    )}
+                  </div>
+                  <button className="small-button" type="button" onClick={() => onPlayHistory(item)}>{resumable ? "Pokračovat" : "Přehrát"}</button>
+                  <button className="icon-button history-remove" type="button" aria-label={"Odebrat z historie: " + item.title} onClick={() => onRemoveHistory(item.id)}>×</button>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -372,12 +508,14 @@ interface PlayerLabProps {
   urlDraft: string;
   source: PlayableSource | null;
   message: string;
+  startAtSeconds: number;
+  onProgress: (positionSeconds: number, durationSeconds: number | null) => void;
   onDraftChange: (value: string) => void;
   onLoad: (value: string, title?: string) => void;
   onLoadDemo: () => void;
 }
 
-function PlayerLab({ urlDraft, source, message, onDraftChange, onLoad, onLoadDemo }: PlayerLabProps) {
+function PlayerLab({ urlDraft, source, message, startAtSeconds, onProgress, onDraftChange, onLoad, onLoadDemo }: PlayerLabProps) {
   return (
     <div className="page-stack">
       <div className="page-heading-row">
@@ -388,7 +526,7 @@ function PlayerLab({ urlDraft, source, message, onDraftChange, onLoad, onLoadDem
       <div className="player-layout">
         <section className="player-main-card">
           <div className="panel-heading"><div><span className="section-kicker">PLAYBACK SURFACE</span><h2>{source?.title || "Testovací přehrávač"}</h2></div><span className="panel-code">MIO.PLAYER.WEB</span></div>
-          <WebPlayer source={source} />
+          <WebPlayer source={source} startAtSeconds={startAtSeconds} onProgress={onProgress} />
           <div className="stream-form">
             <label htmlFor="stream-url">URL streamu</label>
             <div className="stream-input-row">
