@@ -118,3 +118,22 @@ Zdroje:
 - Nebudeme stavět přehrávač pouze na HTML video elementu.
 - Nebudeme zakládat pět samostatných frontendů před tím, než se prokáže nutnost.
 - Nebudeme přidávat Android TV, Apple TV nebo chytré televize do prvního MVP bez samostatného zadání.
+
+
+## 10. Aktuální stav repozitáře
+
+V repozitáři jsou nyní připravené:
+- Capacitor 8.6.2 workspace, app ID a konfigurace cest pro iOS/Android;
+- Tauri 2 desktop workspace, Rust entrypoint, capability a výchozí konfigurace pro Windows/Linux;
+- root npm scripts pro generování/synchronizaci mobilních projektů a spuštění desktop shellu.
+
+Jde o **konfigurační scaffold**, nikoli o hotové nativní aplikace. iOS/Android projekty je nutné vygenerovat pomocí Capacitor CLI na připraveném vývojovém stroji. Tauri je zatím bez MPV/libmpv a bez ověřeného instalátoru. CI v této fázi ověřuje webovou vrstvu; nativní build matrix bude samostatný krok.
+
+Příkazy z kořene repozitáře:
+- `npm run mobile:add:android`
+- `npm run mobile:add:ios`
+- `npm run mobile:prepare`
+- `npm run desktop:dev`
+- `npm run desktop:build`
+
+iOS build vyžaduje macOS + Xcode. Windows a Linux je potřeba ověřit na odpovídajících host systémech.

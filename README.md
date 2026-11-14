@@ -31,10 +31,10 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 | Web UI | React 19 + TypeScript + Vite |
 | Web HLS | hls.js + nativní HLS podle prohlížeče |
 | Sdílené rozhraní | @mio/player-contract |
-| Mobilní aplikace | Capacitor + AVPlayer / Media3, plánováno |
-| Desktop | Tauri 2 + MPV/libmpv PoC, plánováno |
+| Mobilní obal | Capacitor 8.6.2 scaffold; AVPlayer / Media3 bridge zatím chybí |
+| Desktop | Tauri 2.12.3 scaffold; MPV/libmpv PoC zatím chybí |
 
-Desktopový shell a mobilní player nejsou zatím implementované. Jejich architekturu potvrdíme až po technických prototypech.
+Mobilní Capacitor a desktopový Tauri shell mají počáteční konfigurační scaffold. Nativní projekty iOS/Android zatím nejsou vygenerované, Tauri binárka ještě nebyla sestavena a žádný nativní video bridge není hotový.
 
 ## Spuštění
 
@@ -53,6 +53,19 @@ Kontrola projektu:
     npm run check
 
 Vite spustí web na http://127.0.0.1:5173.
+
+Mobilní příprava (vyžaduje odpovídající iOS/Android toolchain):
+
+    npm run mobile:add:android
+    npm run mobile:add:ios
+    npm run mobile:prepare
+
+Desktopový Tauri shell (vyžaduje Rust a systémové závislosti):
+
+    npm run desktop:dev
+    npm run desktop:build
+
+iOS build vyžaduje macOS + Xcode. Tyto příkazy jsou připravené, ale native builds zatím nejsou ověřené.
 
 ## Dokumentace
 

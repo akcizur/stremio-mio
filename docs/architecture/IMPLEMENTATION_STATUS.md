@@ -2,7 +2,7 @@
 
 **Aktualizováno:** 14. listopadu 2026  
 **Větev:** main  
-**Poslední ověřený commit:** d50b1b0d029473ff73bd0b6c84c697a76f42e598
+**Poslední stav dokumentace:** 14. listopadu 2026
 
 Tento dokument rozlišuje skutečně implementované funkce od prototypů a plánů.
 
@@ -64,13 +64,17 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 
 ## Platformní shells
 
-- [ ] Capacitor iOS shell
+- [x] Capacitor 8.6.2 workspace a konfigurační scaffold
+- [x] příkazy pro generování iOS/Android projektů a jejich sync
+- [x] Tauri 2 workspace, Rust entrypoint, capabilities a desktop config
+- [ ] vygenerované a sestavené nativní iOS a Android projekty
 - [ ] AVPlayer Swift bridge
-- [ ] Capacitor Android shell
 - [ ] Media3 Kotlin bridge
-- [ ] Tauri Windows shell
-- [ ] Tauri Linux shell
+- [ ] Tauri Windows build a instalátor
+- [ ] Tauri Linux build a instalátor
 - [ ] MPV/libmpv inline rendering PoC
+
+**Poznámka:** přidané mobilní a desktopové složky jsou pouze scaffold. Zelené web CI neověřuje Xcode, Android Gradle, Rust/Tauri ani instalátory.
 
 ## Co znamená zelené CI
 
