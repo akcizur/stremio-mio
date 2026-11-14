@@ -1,3 +1,5 @@
+import { XMLParser, XMLValidator } from "fast-xml-parser";
+
 export interface M3uChannel {
   id: string;
   name: string;
@@ -13,6 +15,43 @@ export interface M3uParseResult {
   channels: M3uChannel[];
   warnings: string[];
   errors: string[];
+}
+
+export interface XmltvChannel {
+  id: string;
+  displayName: string;
+  icon?: string;
+}
+
+export interface XmltvProgramme {
+  id: string;
+  channelId: string;
+  title: string;
+  description?: string;
+  categories: string[];
+  start: number;
+  stop: number;
+  language?: string;
+}
+
+export interface XmltvParseResult {
+  channels: XmltvChannel[];
+  programmes: XmltvProgramme[];
+  warnings: string[];
+  errors: string[];
+}
+
+export interface StoredIptvPlaylist {
+  name: string;
+  updatedAt: number;
+  channels: M3uChannel[];
+}
+
+export interface StoredXmltvGuide {
+  name: string;
+  updatedAt: number;
+  channels: XmltvChannel[];
+  programmes: XmltvProgramme[];
 }
 
 function splitExtInf(value: string): { metadata: string; title: string } {
@@ -147,7 +186,9 @@ export function parseM3uPlaylist(input: string): M3uParseResult {
 
     if (pending.attributes["tvg-id"]) channel.tvgId = pending.attributes["tvg-id"];
     if (pending.attributes["tvg-name"]) channel.tvgName = pending.attributes["tvg-name"];
-    if (pending.attributes["tvg-logo"]) channel.logo = pending.attributes["tvg-logo"];
+    if (pending.attributes["tvg-logo"] && validateStreamUrl(pending.attributes["tvg-logo"])) {
+      channel.logo = pending.attributes["tvg-logo"];
+    }
 
     const group = pending.group || pendingGroup;
     if (group) channel.group = group;
@@ -170,4 +211,291 @@ export function parseM3uPlaylist(input: string): M3uParseResult {
   }
 
   return { channels, warnings, errors };
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord {
+  return value && typeof value === "object" ? value as UnknownRecord : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function textValue(value: unknown): string {
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (value && typeof value === "object") {
+    const text = asRecord(value)["#text"];
+    return typeof text === "string" || typeof text === "number" ? String(text).trim() : "";
+  }
+  return "";
+}
+
+function attribute(value: unknown, name: string): string {
+  const field = asRecord(value)["@_" + name];
+  return typeof field === "string" || typeof field === "number" ? String(field).trim() : "";
+}
+
+function parseXmltvTimestamp(value: string): number | null {
+  const match = value.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-])(\d{2})(\d{2}))?$/);
+  if (!match) return null;
+
+  const [, year, month, day, hour, minute, second, sign, offsetHour, offsetMinute] = match;
+  const timestamp = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second)
+  );
+
+  const date = new Date(timestamp);
+  if (
+    date.getUTCFullYear() !== Number(year) ||
+    date.getUTCMonth() !== Number(month) - 1 ||
+    date.getUTCDate() !== Number(day) ||
+    date.getUTCHours() !== Number(hour) ||
+    date.getUTCMinutes() !== Number(minute) ||
+    date.getUTCSeconds() !== Number(second)
+  ) return null;
+
+  if (sign && offsetHour && offsetMinute) {
+    const hours = Number(offsetHour);
+    const minutes = Number(offsetMinute);
+    if (hours > 14 || minutes > 59) return null;
+    const offset = (hours * 60 + minutes) * 60_000 * (sign === "+" ? 1 : -1);
+    return timestamp - offset;
+  }
+
+  return timestamp;
+}
+
+const xmlParser = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  textNodeName: "#text",
+  parseAttributeValue: false,
+  parseTagValue: false,
+  trimValues: true,
+  processEntities: true,
+  maxNestedTags: 32
+});
+
+export function parseXmltv(input: string): XmltvParseResult {
+  const channels: XmltvChannel[] = [];
+  const programmes: XmltvProgramme[] = [];
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  if (input.length > 20 * 1024 * 1024) {
+    return { channels, programmes, warnings, errors: ["XMLTV soubor překračuje limit 20 MB."] };
+  }
+
+  let xml = input.replace(/^\uFEFF/, "").trim();
+  if (!xml) {
+    return { channels, programmes, warnings, errors: ["XMLTV soubor je prázdný."] };
+  }
+
+  if (/<!ENTITY\b/i.test(xml) || /<!DOCTYPE\b[^>]*\[/i.test(xml)) {
+    return {
+      channels,
+      programmes,
+      warnings,
+      errors: ["XMLTV obsahuje vlastní DTD/entity deklarace, které MIO z bezpečnostních důvodů nepřijímá."]
+    };
+  }
+
+  if (/<!DOCTYPE\b/i.test(xml)) {
+    const externalDoctype = /<!DOCTYPE\s+tv\s+(?:SYSTEM\s+["'][^"']+["']|PUBLIC\s+["'][^"']+["']\s+["'][^"']+["'])\s*>/i;
+    if (!externalDoctype.test(xml)) {
+      return { channels, programmes, warnings, errors: ["Nepodporovaná DOCTYPE deklarace v XMLTV."] };
+    }
+    xml = xml.replace(externalDoctype, "");
+    warnings.push("Externí XMLTV DTD byla ignorována; MIO ji nenačítá.");
+  }
+
+  const validation = XMLValidator.validate(xml);
+  if (validation !== true) {
+    const detail = typeof validation === "object" && "err" in validation
+      ? String(validation.err?.msg ?? "neznámá chyba")
+      : "neplatná XML struktura";
+    return { channels, programmes, warnings, errors: ["XMLTV není validní XML: " + detail] };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = xmlParser.parse(xml);
+  } catch {
+    return { channels, programmes, warnings, errors: ["XMLTV se nepodařilo bezpečně parsovat."] };
+  }
+
+  const root = asRecord(asRecord(parsed).tv);
+  if (Object.keys(root).length === 0) {
+    return { channels, programmes, warnings, errors: ["V XML souboru nebyl nalezen kořenový element tv."] };
+  }
+
+  for (const rawChannel of asArray(root.channel)) {
+    const channelId = attribute(rawChannel, "id");
+    if (!channelId) {
+      warnings.push("Kanál bez atributu id byl přeskočen.");
+      continue;
+    }
+
+    const displayNames = asArray(asRecord(rawChannel)["display-name"])
+      .map(textValue)
+      .filter(Boolean);
+    const displayName = displayNames[0] || channelId;
+    const icon = attribute(asArray(asRecord(rawChannel).icon)[0], "src");
+    const channel: XmltvChannel = { id: channelId, displayName };
+    if (icon && validateStreamUrl(icon)) channel.icon = icon;
+    channels.push(channel);
+  }
+
+  let skippedProgrammes = 0;
+
+  for (const rawProgramme of asArray(root.programme)) {
+    const channelId = attribute(rawProgramme, "channel");
+    const startText = attribute(rawProgramme, "start");
+    const stopText = attribute(rawProgramme, "stop");
+    const start = parseXmltvTimestamp(startText);
+    const stop = parseXmltvTimestamp(stopText);
+    const titleNode = asArray(asRecord(rawProgramme).title)[0];
+    const title = textValue(titleNode);
+
+    if (!channelId || start === null || stop === null || stop <= start || !title) {
+      skippedProgrammes += 1;
+      continue;
+    }
+
+    const descriptionNode = asArray(asRecord(rawProgramme).desc)[0];
+    const description = textValue(descriptionNode);
+    const categories = asArray(asRecord(rawProgramme).category).map(textValue).filter(Boolean);
+    const language = attribute(titleNode, "lang");
+    const programme: XmltvProgramme = {
+      id: channelId + ":" + start + ":" + title,
+      channelId,
+      title,
+      categories,
+      start,
+      stop
+    };
+
+    if (description) programme.description = description;
+    if (language) programme.language = language;
+    programmes.push(programme);
+  }
+
+  if (skippedProgrammes > 0) {
+    warnings.push("Přeskočeno " + skippedProgrammes + " pořadů s neúplnými nebo neplatnými údaji.");
+  }
+
+  channels.sort((a, b) => a.displayName.localeCompare(b.displayName, "cs"));
+  programmes.sort((a, b) => a.start - b.start);
+
+  if (channels.length === 0 && programmes.length === 0) {
+    errors.push("XMLTV neobsahuje žádné použitelné kanály ani pořady.");
+  }
+
+  return { channels, programmes, warnings, errors };
+}
+
+export class IptvLocalRepository {
+  private databasePromise: Promise<IDBDatabase> | null = null;
+
+  async loadPlaylist(): Promise<StoredIptvPlaylist | null> {
+    return this.get<StoredIptvPlaylist>("playlist");
+  }
+
+  async savePlaylist(value: StoredIptvPlaylist): Promise<void> {
+    await this.put("playlist", value);
+  }
+
+  async loadGuide(): Promise<StoredXmltvGuide | null> {
+    return this.get<StoredXmltvGuide>("guide");
+  }
+
+  async saveGuide(value: StoredXmltvGuide): Promise<void> {
+    await this.put("guide", value);
+  }
+
+  async clearPlaylist(): Promise<void> {
+    await this.remove("playlist");
+  }
+
+  async clearGuide(): Promise<void> {
+    await this.remove("guide");
+  }
+
+  private database(): Promise<IDBDatabase> {
+    if (typeof indexedDB === "undefined") {
+      return Promise.reject(new Error("Toto prostředí nepodporuje IndexedDB."));
+    }
+    if (this.databasePromise) return this.databasePromise;
+
+    this.databasePromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open("mio-iptv", 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains("records")) {
+          database.createObjectStore("records", { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => {
+        const database = request.result;
+        database.onversionchange = () => database.close();
+        resolve(database);
+      };
+      request.onerror = () => {
+        this.databasePromise = null;
+        reject(request.error ?? new Error("IPTV úložiště se nepodařilo otevřít."));
+      };
+      request.onblocked = () => {
+        this.databasePromise = null;
+        reject(new Error("IPTV úložiště blokuje jiná verze aplikace."));
+      };
+    });
+    return this.databasePromise;
+  }
+
+  private async get<T>(id: string): Promise<T | null> {
+    const database = await this.database();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("records", "readonly");
+      const request = transaction.objectStore("records").get(id);
+      let result: T | null = null;
+      request.onsuccess = () => {
+        const record = request.result as { value: T } | undefined;
+        result = record?.value ?? null;
+      };
+      request.onerror = () => reject(request.error ?? new Error("Čtení IPTV úložiště selhalo."));
+      transaction.oncomplete = () => resolve(result);
+      transaction.onerror = () => reject(transaction.error ?? new Error("Čtení IPTV úložiště selhalo."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Čtení IPTV úložiště bylo přerušeno."));
+    });
+  }
+
+  private async put<T>(id: string, value: T): Promise<void> {
+    const database = await this.database();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("records", "readwrite");
+      transaction.objectStore("records").put({ id, value });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Zápis IPTV úložiště selhal."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Zápis IPTV úložiště byl přerušen."));
+    });
+  }
+
+  private async remove(id: string): Promise<void> {
+    const database = await this.database();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("records", "readwrite");
+      transaction.objectStore("records").delete(id);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("Mazání IPTV úložiště selhalo."));
+      transaction.onabort = () => reject(transaction.error ?? new Error("Mazání IPTV úložiště bylo přerušeno."));
+    });
+  }
 }

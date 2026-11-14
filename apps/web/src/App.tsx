@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { LibraryEntry } from "@mio/library";
 import { IndexedDbLibraryRepository } from "@mio/library";
 import type { M3uChannel } from "@mio/iptv";
+import { IptvScreen } from "./components/IptvScreen";
+import type { M3uChannel } from "@mio/iptv";
 import type { PlayableSource } from "@mio/player-contract";
 import { parsePlayableUrl } from "@mio/player-contract";
 import { IptvScreen } from "./components/IptvScreen";
@@ -222,6 +224,8 @@ export function App() {
               onRemove={removeFromLibrary}
             />
           )}
+
+          {activeSection === "iptv" && <IptvScreen onPlay={playChannel} />}
 
           {activeSection === "iptv" && <IptvScreen onPlay={playChannel} />}
 

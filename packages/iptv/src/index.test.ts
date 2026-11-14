@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseM3uPlaylist } from "./index";
+import { parseM3uPlaylist, parseXmltv } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -33,7 +33,6 @@ describe("parseM3uPlaylist", () => {
     ].join("\r\n");
 
     const result = parseM3uPlaylist(playlist);
-
     expect(result.channels.map((channel) => channel.name)).toEqual(["News One", "Sport One"]);
     expect(result.channels.map((channel) => channel.group)).toEqual(["News", "Sport"]);
   });
@@ -73,12 +72,77 @@ describe("parseM3uPlaylist", () => {
   it("does not treat directive-only rows as channel URLs", () => {
     const result = parseM3uPlaylist([
       "#EXTM3U",
-      '#EXTINF:-1,Channel One',
+      "#EXTINF:-1,Channel One",
       "#EXTVLCOPT:http-user-agent=Example",
       "https://stream.example.test/live.m3u8"
     ].join("\n"));
 
     expect(result.channels).toHaveLength(1);
     expect(result.warnings.some((warning) => warning.includes("direktiva"))).toBe(true);
+  });
+});
+
+describe("parseXmltv", () => {
+  it("parses channels and programmes with their timezone offsets", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+      <!DOCTYPE tv SYSTEM "xmltv.dtd">
+      <tv>
+        <channel id="ct1.cz">
+          <display-name lang="cs">ČT 1</display-name>
+          <icon src="https://img.example.test/ct1.png" />
+        </channel>
+        <programme start="20261114180000 +0100" stop="20261114190000 +0100" channel="ct1.cz">
+          <title lang="cs">Události</title>
+          <desc>Večerní zpravodajství</desc>
+          <category>News</category>
+        </programme>
+      </tv>`;
+
+    const result = parseXmltv(xml);
+
+    expect(result.errors).toHaveLength(0);
+    expect(result.channels).toHaveLength(1);
+    expect(result.channels[0]).toMatchObject({
+      id: "ct1.cz",
+      displayName: "ČT 1",
+      icon: "https://img.example.test/ct1.png"
+    });
+    expect(result.programmes).toHaveLength(1);
+    expect(result.programmes[0]).toMatchObject({
+      channelId: "ct1.cz",
+      title: "Události",
+      description: "Večerní zpravodajství",
+      categories: ["News"],
+      language: "cs",
+      start: Date.UTC(2026, 10, 14, 17, 0, 0),
+      stop: Date.UTC(2026, 10, 14, 18, 0, 0)
+    });
+    expect(result.warnings).toContain("Externí XMLTV DTD byla ignorována; MIO ji nenačítá.");
+  });
+
+  it("rejects internal DTD entity declarations", () => {
+    const result = parseXmltv('<!DOCTYPE tv [<!ENTITY x "boom">]><tv></tv>');
+    expect(result.errors[0]).toContain("entity deklarace");
+  });
+
+  it("rejects XML payloads above the size limit", () => {
+    const result = parseXmltv("<tv>" + "x".repeat(20 * 1024 * 1024) + "</tv>");
+    expect(result.errors[0]).toContain("20 MB");
+  });
+
+  it("rejects invalid XML", () => {
+    const result = parseXmltv("<tv><channel></tv>");
+    expect(result.errors[0]).toContain("validní XML");
+  });
+
+  it("rejects ambiguous timestamps", () => {
+    const xml = `<tv>
+      <programme start="20261114180000" stop="20261114190000" channel="ct1">
+        <title>Programme</title>
+      </programme>
+    </tv>`;
+    const result = parseXmltv(xml);
+    expect(result.programmes).toHaveLength(0);
+    expect(result.warnings[0]).toContain("Přeskočeno 1 pořadů");
   });
 });
