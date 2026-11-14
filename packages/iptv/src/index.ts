@@ -42,9 +42,21 @@ export interface XmltvParseResult {
 }
 
 export interface StoredIptvPlaylist {
+  id: string;
   name: string;
   updatedAt: number;
   channels: M3uChannel[];
+}
+
+export type LegacyStoredIptvPlaylist = Omit<StoredIptvPlaylist, "id">;
+
+export function migrateLegacyIptvPlaylist(
+  playlist: LegacyStoredIptvPlaylist
+): StoredIptvPlaylist {
+  return {
+    ...playlist,
+    id: "legacy-" + Math.max(0, playlist.updatedAt).toString(36)
+  };
 }
 
 export interface StoredXmltvGuide {
@@ -410,12 +422,50 @@ export function parseXmltv(input: string): XmltvParseResult {
 export class IptvLocalRepository {
   private databasePromise: Promise<IDBDatabase> | null = null;
 
-  async loadPlaylist(): Promise<StoredIptvPlaylist | null> {
-    return this.get<StoredIptvPlaylist>("playlist");
+  async loadPlaylists(): Promise<StoredIptvPlaylist[]> {
+    const stored = await this.get<unknown>("playlists");
+    if (Array.isArray(stored)) {
+      return stored.filter((item): item is StoredIptvPlaylist => (
+        Boolean(item) &&
+        typeof item === "object" &&
+        typeof (item as StoredIptvPlaylist).id === "string" &&
+        typeof (item as StoredIptvPlaylist).name === "string" &&
+        Array.isArray((item as StoredIptvPlaylist).channels)
+      ));
+    }
+
+    // One-time migration from the original single-playlist storage key.
+    const legacy = await this.get<LegacyStoredIptvPlaylist>("playlist");
+    if (!legacy || !Array.isArray(legacy.channels)) return [];
+
+    const migrated = migrateLegacyIptvPlaylist(legacy);
+    await this.put("playlists", [migrated]);
+    await this.remove("playlist");
+    return [migrated];
   }
 
   async savePlaylist(value: StoredIptvPlaylist): Promise<void> {
-    await this.put("playlist", value);
+    const playlists = await this.loadPlaylists();
+    const existingIndex = playlists.findIndex((playlist) => playlist.id === value.id);
+    const updated = [...playlists];
+    if (existingIndex >= 0) updated[existingIndex] = value;
+    else updated.push(value);
+    updated.sort((left, right) => right.updatedAt - left.updatedAt);
+    await this.put("playlists", updated);
+  }
+
+  async removePlaylist(id: string): Promise<void> {
+    const playlists = await this.loadPlaylists();
+    await this.put("playlists", playlists.filter((playlist) => playlist.id !== id));
+  }
+
+  async loadActivePlaylistId(): Promise<string | null> {
+    return this.get<string>("active-playlist");
+  }
+
+  async saveActivePlaylistId(id: string | null): Promise<void> {
+    if (id) await this.put("active-playlist", id);
+    else await this.remove("active-playlist");
   }
 
   async loadGuide(): Promise<StoredXmltvGuide | null> {
@@ -436,10 +486,6 @@ export class IptvLocalRepository {
   async saveFavoriteChannelKeys(keys: string[]): Promise<void> {
     const uniqueKeys = [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
     await this.put("favorite-channels", uniqueKeys);
-  }
-
-  async clearPlaylist(): Promise<void> {
-    await this.remove("playlist");
   }
 
   async clearGuide(): Promise<void> {

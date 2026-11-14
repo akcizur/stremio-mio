@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, parseM3uPlaylist, parseXmltv } from "./index";
+import { getChannelFavoriteKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -164,5 +164,27 @@ describe("getChannelFavoriteKey", () => {
     expect(getChannelFavoriteKey({
       url: "https://STREAM.example.test:443/live.m3u8"
     })).toBe("url:https://stream.example.test/live.m3u8");
+  });
+});
+
+describe("migrateLegacyIptvPlaylist", () => {
+  it("preserves the existing playlist data and assigns a stable legacy ID", () => {
+    const legacy = {
+      name: "old-favourites.m3u",
+      updatedAt: 1_700_000_000_000,
+      channels: [{
+        id: "channel-1",
+        name: "Channel One",
+        url: "https://stream.example.test/live.m3u8"
+      }]
+    };
+
+    const migrated = migrateLegacyIptvPlaylist(legacy);
+
+    expect(migrated).toEqual({
+      ...legacy,
+      id: "legacy-" + legacy.updatedAt.toString(36)
+    });
+    expect(migrateLegacyIptvPlaylist(legacy).id).toBe(migrated.id);
   });
 });

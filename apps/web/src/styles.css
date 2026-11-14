@@ -192,3 +192,22 @@
 @media (max-width: 760px) {
   .iptv-favorites-toggle { min-height: 38px; }
 }
+
+.iptv-playlist-select {
+  min-width: 190px;
+  max-width: min(320px, 42vw);
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #c5ccd2;
+  background: #0b0e14;
+  font-size: 10px;
+}
+@media (max-width: 760px) {
+  .iptv-playlist-select {
+    width: 100%;
+    max-width: none;
+    min-height: 38px;
+  }
+}

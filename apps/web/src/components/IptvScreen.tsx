@@ -18,8 +18,8 @@ interface IptvScreenProps {
 const iptvRepository = new IptvLocalRepository();
 
 export function IptvScreen({ onPlay }: IptvScreenProps) {
-  const [channels, setChannels] = useState<M3uChannel[]>([]);
-  const [playlistName, setPlaylistName] = useState("");
+  const [playlists, setPlaylists] = useState<StoredIptvPlaylist[]>([]);
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("Všechny skupiny");
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -36,15 +36,18 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     let cancelled = false;
 
     Promise.all([
-      iptvRepository.loadPlaylist(),
+      iptvRepository.loadPlaylists(),
+      iptvRepository.loadActivePlaylistId(),
       iptvRepository.loadGuide(),
       iptvRepository.loadFavoriteChannelKeys()
     ])
-      .then(([storedPlaylist, storedGuide, storedFavoriteKeys]) => {
+      .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys]) => {
         if (cancelled) return;
-        if (storedPlaylist) {
-          setChannels(storedPlaylist.channels);
-          setPlaylistName(storedPlaylist.name);
+        setPlaylists(storedPlaylists);
+        const selected = storedPlaylists.find((playlist) => playlist.id === storedActiveId) ?? storedPlaylists[0] ?? null;
+        setActivePlaylistId(selected?.id ?? null);
+        if (selected && selected.id !== storedActiveId) {
+          void iptvRepository.saveActivePlaylistId(selected.id);
         }
         if (storedGuide) setGuide(storedGuide);
         setFavoriteKeys(new Set(storedFavoriteKeys));
@@ -67,6 +70,13 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  const activePlaylist = useMemo(
+    () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
+    [playlists, activePlaylistId]
+  );
+  const channels = activePlaylist?.channels ?? [];
+  const playlistName = activePlaylist?.name ?? "";
 
   const groups = useMemo(
     () => Array.from(new Set(channels.map((channel) => channel.group).filter((group): group is string => Boolean(group)))).sort((a, b) => a.localeCompare(b, "cs")),
@@ -140,15 +150,22 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       }
 
       const record: StoredIptvPlaylist = {
+        id: typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : "playlist-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
         name: file.name,
         updatedAt: Date.now(),
         channels: result.channels
       };
       await iptvRepository.savePlaylist(record);
-      setChannels(record.channels);
-      setPlaylistName(record.name);
+      const updated = [record, ...playlists];
+      setPlaylists(updated);
+      setActivePlaylistId(record.id);
+      await iptvRepository.saveActivePlaylistId(record.id);
       setSelectedGroup("Všechny skupiny");
       setSearch("");
+      setFavoritesOnly(false);
+      setWarnings(result.warnings);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Soubor se nepodařilo přečíst nebo uložit.");
@@ -187,11 +204,36 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     }
   }
 
-  async function clearPlaylist() {
+  async function activatePlaylist(id: string) {
+    const selected = playlists.find((playlist) => playlist.id === id);
+    if (!selected) return;
+
     try {
-      await iptvRepository.clearPlaylist();
-      setChannels([]);
-      setPlaylistName("");
+      await iptvRepository.saveActivePlaylistId(id);
+      setActivePlaylistId(id);
+      setSelectedGroup("Všechny skupiny");
+      setSearch("");
+      setFavoritesOnly(false);
+      setWarnings([]);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Playlist se nepodařilo přepnout.");
+    }
+  }
+
+  async function removeActivePlaylist() {
+    if (!activePlaylist) return;
+
+    try {
+      await iptvRepository.removePlaylist(activePlaylist.id);
+      const remaining = playlists.filter((playlist) => playlist.id !== activePlaylist.id);
+      const next = remaining[0] ?? null;
+      await iptvRepository.saveActivePlaylistId(next?.id ?? null);
+      setPlaylists(remaining);
+      setActivePlaylistId(next?.id ?? null);
+      setSelectedGroup("Všechny skupiny");
+      setSearch("");
+      setFavoritesOnly(false);
       setWarnings([]);
       setError("");
     } catch (cause) {
@@ -236,14 +278,34 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         <div className="iptv-import-copy">
           <span className="section-kicker">PLAYLIST MANAGER</span>
           <h2>{playlistName || "Připojit playlist"}</h2>
-          <p>{isReady ? "Playlist se ukládá lokálně a zůstane dostupný po obnovení stránky." : "Načítám lokální úložiště…"}</p>
+          <p>{isReady
+            ? playlists.length + " uložených playlistů · data zůstávají v tomto zařízení"
+            : "Načítám lokální úložiště…"}</p>
         </div>
         <div className="iptv-import-actions">
+          {playlists.length > 0 && (
+            <select
+              className="iptv-playlist-select"
+              value={activePlaylistId ?? ""}
+              onChange={(event) => void activatePlaylist(event.target.value)}
+              aria-label="Vybrat aktivní playlist"
+            >
+              {playlists.map((playlist) => (
+                <option key={playlist.id} value={playlist.id}>
+                  {playlist.name} · {playlist.channels.length} kanálů
+                </option>
+              ))}
+            </select>
+          )}
           <label className="button-primary file-picker">
-            Vybrat M3U soubor <span>＋</span>
+            Přidat M3U playlist <span>＋</span>
             <input type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl" onChange={importFile} />
           </label>
-          {playlistName && <button className="small-button" onClick={clearPlaylist}>Odebrat playlist</button>}
+          {activePlaylist && (
+            <button className="small-button" onClick={() => void removeActivePlaylist()}>
+              Odebrat aktuální
+            </button>
+          )}
         </div>
       </section>
 
@@ -357,7 +419,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         <div className="library-empty iptv-empty">
           <div className="coming-icon">◉</div>
           <h2>Žádný playlist není načtený</h2>
-          <p>Importuj M3U/M3U8 soubor. MIO načte názvy, skupiny a TVG identifikátory kanálů.</p>
+          <p>Importuj jeden nebo více M3U/M3U8 souborů. Mezi uloženými playlisty můžeš přepínat bez opětovného importu.</p>
         </div>
       )}
 
@@ -365,7 +427,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>
-        <p>Playlist a EPG se ukládají lokálně do IndexedDB. Párování programu probíhá podle přesné shody M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
+        <p>Playlisty a EPG se ukládají lokálně do IndexedDB. Párování programu probíhá podle přesné shody M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
       </div>
     </div>
   );
