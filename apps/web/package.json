@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mio/iptv": "0.1.0",
     "@mio/library": "0.1.0",
     "@mio/player-contract": "0.1.0",
     "@vitejs/plugin-react": "6.3.0",

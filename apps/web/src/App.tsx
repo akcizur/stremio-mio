@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LibraryEntry } from "@mio/library";
 import { IndexedDbLibraryRepository } from "@mio/library";
+import type { M3uChannel } from "@mio/iptv";
 import type { PlayableSource } from "@mio/player-contract";
 import { parsePlayableUrl } from "@mio/player-contract";
+import { IptvScreen } from "./components/IptvScreen";
 import { WebPlayer } from "./components/WebPlayer";
 
 type SectionId = "discover" | "library" | "iptv" | "youtube" | "player" | "addons" | "settings";
@@ -112,16 +114,21 @@ export function App() {
     }
   }
 
-  function loadStream(value: string) {
+  function loadStream(value: string, title?: string) {
     const result = parsePlayableUrl(value);
     if (!result.ok) {
       setPlayerMessage(result.error);
+      setActiveSection("player");
       return;
     }
 
-    setSource(result.source);
+    setSource({ ...result.source, ...(title ? { title } : {}) });
     setPlayerMessage("");
     setActiveSection("player");
+  }
+
+  function playChannel(channel: M3uChannel) {
+    loadStream(channel.url, channel.name);
   }
 
   return (
@@ -216,6 +223,8 @@ export function App() {
             />
           )}
 
+          {activeSection === "iptv" && <IptvScreen onPlay={playChannel} />}
+
           {activeSection === "player" && (
             <PlayerLab
               urlDraft={urlDraft}
@@ -223,11 +232,11 @@ export function App() {
               message={playerMessage}
               onDraftChange={setUrlDraft}
               onLoad={loadStream}
-              onLoadDemo={() => { setUrlDraft(demoHlsUrl); loadStream(demoHlsUrl); }}
+              onLoadDemo={() => { setUrlDraft(demoHlsUrl); loadStream(demoHlsUrl, "Mux HLS test stream"); }}
             />
           )}
 
-          {activeSection !== "discover" && activeSection !== "library" && activeSection !== "player" && (
+          {activeSection !== "discover" && activeSection !== "library" && activeSection !== "iptv" && activeSection !== "player" && (
             <ComingSoon section={activeSection} />
           )}
         </div>
@@ -298,7 +307,7 @@ function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }:
         </div>
         <div className="module-grid">
           <ModuleCard number="01" title="Katalog & metadata" detail="Filmy, seriály, epizody a sjednocené ID." state="PLÁNOVÁNO" />
-          <ModuleCard number="02" title="IPTV & program" detail="Playlisty M3U, kanály a XMLTV EPG." state="PLÁNOVÁNO" />
+          <ModuleCard number="02" title="IPTV & program" detail="Playlisty M3U, kanály a XMLTV EPG." state="M3U PROTOTYP" />
           <ModuleCard number="03" title="Nativní přehrávání" detail="AVPlayer, Media3 a desktopový MPV PoC." state="PROTOTYP" />
         </div>
       </section>
@@ -364,7 +373,7 @@ interface PlayerLabProps {
   source: PlayableSource | null;
   message: string;
   onDraftChange: (value: string) => void;
-  onLoad: (value: string) => void;
+  onLoad: (value: string, title?: string) => void;
   onLoadDemo: () => void;
 }
 
@@ -378,7 +387,7 @@ function PlayerLab({ urlDraft, source, message, onDraftChange, onLoad, onLoadDem
 
       <div className="player-layout">
         <section className="player-main-card">
-          <div className="panel-heading"><div><span className="section-kicker">PLAYBACK SURFACE</span><h2>Testovací přehrávač</h2></div><span className="panel-code">MIO.PLAYER.WEB</span></div>
+          <div className="panel-heading"><div><span className="section-kicker">PLAYBACK SURFACE</span><h2>{source?.title || "Testovací přehrávač"}</h2></div><span className="panel-code">MIO.PLAYER.WEB</span></div>
           <WebPlayer source={source} />
           <div className="stream-form">
             <label htmlFor="stream-url">URL streamu</label>
@@ -426,7 +435,7 @@ function ComingSoon({ section }: { section: SectionId }) {
   const descriptions: Record<SectionId, string> = {
     discover: "",
     library: "",
-    iptv: "Import playlistů M3U, správa kanálů, skupin a programového průvodce XMLTV.",
+    iptv: "",
     youtube: "Vyhledávání a přehrávání přes oficiální YouTube API a embedded player.",
     player: "",
     addons: "Konektory, Stremio addon kompatibilita a oprávnění jednotlivých zdrojů.",
