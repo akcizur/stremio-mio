@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { EpgGrid } from "./EpgGrid";
 import {
   IptvLocalRepository,
+  getChannelFavoriteKey,
   parseM3uPlaylist,
   parseXmltv,
   type M3uChannel,
@@ -24,6 +25,8 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [guide, setGuide] = useState<StoredXmltvGuide | null>(null);
+  const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(() => new Set());
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [guideWarnings, setGuideWarnings] = useState<string[]>([]);
   const [guideError, setGuideError] = useState("");
   const [isReady, setIsReady] = useState(false);
@@ -32,14 +35,19 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([iptvRepository.loadPlaylist(), iptvRepository.loadGuide()])
-      .then(([storedPlaylist, storedGuide]) => {
+    Promise.all([
+      iptvRepository.loadPlaylist(),
+      iptvRepository.loadGuide(),
+      iptvRepository.loadFavoriteChannelKeys()
+    ])
+      .then(([storedPlaylist, storedGuide, storedFavoriteKeys]) => {
         if (cancelled) return;
         if (storedPlaylist) {
           setChannels(storedPlaylist.channels);
           setPlaylistName(storedPlaylist.name);
         }
         if (storedGuide) setGuide(storedGuide);
+        setFavoriteKeys(new Set(storedFavoriteKeys));
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -73,9 +81,10 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         channel.name + " " + (channel.tvgId ?? "") + " " + (channel.group ?? "")
       ).toLocaleLowerCase("cs-CZ").includes(normalized);
       const matchesGroup = selectedGroup === "Všechny skupiny" || channel.group === selectedGroup;
-      return matchesSearch && matchesGroup;
+      const matchesFavorite = !favoritesOnly || favoriteKeys.has(getChannelFavoriteKey(channel));
+      return matchesSearch && matchesGroup && matchesFavorite;
     });
-  }, [channels, search, selectedGroup]);
+  }, [channels, search, selectedGroup, favoritesOnly, favoriteKeys]);
 
   const guideByChannel = useMemo(() => {
     const map = new Map<string, XmltvProgramme[]>();
@@ -91,6 +100,26 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     () => channels.filter((channel) => channel.tvgId && guideByChannel.has(channel.tvgId)).length,
     [channels, guideByChannel]
   );
+
+  const favoriteChannelCount = useMemo(
+    () => channels.filter((channel) => favoriteKeys.has(getChannelFavoriteKey(channel))).length,
+    [channels, favoriteKeys]
+  );
+
+  async function toggleFavorite(channel: M3uChannel) {
+    const key = getChannelFavoriteKey(channel);
+    const nextKeys = new Set(favoriteKeys);
+    if (nextKeys.has(key)) nextKeys.delete(key);
+    else nextKeys.add(key);
+
+    try {
+      await iptvRepository.saveFavoriteChannelKeys([...nextKeys]);
+      setFavoriteKeys(nextKeys);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Oblíbené kanály se nepodařilo uložit.");
+    }
+  }
 
   async function importFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -257,6 +286,16 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
               <span aria-hidden="true">⌕</span>
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Hledat kanál nebo TVG ID…" aria-label="Hledat kanál" />
             </label>
+            <button
+              className={"iptv-favorites-toggle" + (favoritesOnly ? " active" : "")}
+              type="button"
+              aria-pressed={favoritesOnly}
+              onClick={() => setFavoritesOnly((value) => !value)}
+            >
+              <span aria-hidden="true">{favoritesOnly ? "★" : "☆"}</span>
+              Oblíbené
+              <small>{favoriteChannelCount}</small>
+            </button>
             <select value={selectedGroup} onChange={(event) => setSelectedGroup(event.target.value)} aria-label="Filtrovat skupinu">
               <option>Všechny skupiny</option>
               {groups.map((group) => <option key={group}>{group}</option>)}
@@ -267,9 +306,24 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
           </div>
           {visibleChannels.map((channel) => {
             const programme = getProgramme(channel);
+            const favoriteKey = getChannelFavoriteKey(channel);
+            const isFavorite = favoriteKeys.has(favoriteKey);
             return (
               <div className="iptv-channel-row iptv-guide-row" key={channel.id}>
-                <div className="iptv-channel-name"><span className="channel-mark">▶</span><strong>{channel.name}</strong></div>
+                <div className="iptv-channel-name">
+                  <span className="channel-mark">▶</span>
+                  <strong>{channel.name}</strong>
+                  <button
+                    className="iptv-favorite"
+                    type="button"
+                    aria-label={isFavorite ? "Odebrat z oblíbených" : "Přidat do oblíbených"}
+                    aria-pressed={isFavorite}
+                    title={isFavorite ? "Odebrat z oblíbených" : "Přidat do oblíbených"}
+                    onClick={() => void toggleFavorite(channel)}
+                  >
+                    {isFavorite ? "★" : "☆"}
+                  </button>
+                </div>
                 <span className="iptv-group">{channel.group || "Bez skupiny"}</span>
                 <span className="iptv-tvg">{channel.tvgId || "—"}</span>
                 <div className="iptv-programme">
@@ -290,7 +344,13 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
               </div>
             );
           })}
-          {visibleChannels.length === 0 && <div className="iptv-empty-filter">Filtru neodpovídá žádný kanál.</div>}
+          {visibleChannels.length === 0 && (
+            <div className="iptv-empty-filter">
+              {favoritesOnly && favoriteChannelCount === 0
+                ? "Zatím nemáš žádný oblíbený kanál."
+                : "Filtru neodpovídá žádný kanál."}
+            </div>
+          )}
           <div className="iptv-table-foot">ZOBRAZENO {visibleChannels.length} / {channels.length} · PARSOVÁNO LOKÁLNĚ</div>
         </section>
       ) : (

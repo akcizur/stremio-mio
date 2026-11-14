@@ -54,6 +54,12 @@ export interface StoredXmltvGuide {
   programmes: XmltvProgramme[];
 }
 
+export function getChannelFavoriteKey(channel: Pick<M3uChannel, "tvgId" | "url">): string {
+  const tvgId = channel.tvgId?.trim();
+  if (tvgId) return "tvg:" + tvgId.toLocaleLowerCase("en-US");
+  return "url:" + new URL(channel.url).href;
+}
+
 function splitExtInf(value: string): { metadata: string; title: string } {
   let quote: string | null = null;
 
@@ -418,6 +424,18 @@ export class IptvLocalRepository {
 
   async saveGuide(value: StoredXmltvGuide): Promise<void> {
     await this.put("guide", value);
+  }
+
+  async loadFavoriteChannelKeys(): Promise<string[]> {
+    const stored = await this.get<unknown>("favorite-channels");
+    return Array.isArray(stored)
+      ? stored.filter((key): key is string => typeof key === "string" && key.length > 0)
+      : [];
+  }
+
+  async saveFavoriteChannelKeys(keys: string[]): Promise<void> {
+    const uniqueKeys = [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
+    await this.put("favorite-channels", uniqueKeys);
   }
 
   async clearPlaylist(): Promise<void> {

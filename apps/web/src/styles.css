@@ -144,3 +144,51 @@
   .epg-grid-heading { align-items: flex-start; flex-direction: column; }
   .epg-axis, .epg-row { grid-template-columns: 122px minmax(0,1fr); }
 }
+
+/* Persistent IPTV channel favourites */
+.iptv-favorites-toggle {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #aeb7c1;
+  background: #0b0e14;
+  font-size: 10px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background .18s ease;
+}
+.iptv-favorites-toggle span { color: #aeb7c1; font-size: 14px; }
+.iptv-favorites-toggle small { color: #7d8994; font: 9px var(--mono); }
+.iptv-favorites-toggle.active {
+  border-color: rgba(216,255,114,.35);
+  color: #e5f2c4;
+  background: rgba(216,255,114,.07);
+}
+.iptv-favorites-toggle.active span, .iptv-favorite[aria-pressed="true"] { color: #d8ff72; }
+.iptv-favorite {
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #77818d;
+  background: rgba(255,255,255,.025);
+  font-size: 15px;
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background .18s ease;
+}
+.iptv-favorite:hover, .iptv-favorite[aria-pressed="true"] {
+  border-color: rgba(216,255,114,.3);
+  background: rgba(216,255,114,.07);
+}
+@media (max-width: 760px) {
+  .iptv-favorites-toggle { min-height: 38px; }
+}

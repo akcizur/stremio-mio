@@ -43,6 +43,7 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 - [x] lokální M3U/M3U8 souborový import do 10 MB
 - [x] parsing kanálů, skupin, tvg-id, tvg-name a bezpečné tvg-logo URL
 - [x] vyhledávání a filtrování podle skupin
+- [x] oblíbené kanály uložené v IndexedDB se stabilním TVG ID klíčem
 - [x] uložení jednoho playlistu do IndexedDB
 - [x] XMLTV import do 20 MB
 - [x] validace XML a odmítnutí vlastních DTD/entity deklarací

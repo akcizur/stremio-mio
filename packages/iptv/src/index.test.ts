@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseM3uPlaylist, parseXmltv } from "./index";
+import { getChannelFavoriteKey, parseM3uPlaylist, parseXmltv } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -144,5 +144,25 @@ describe("parseXmltv", () => {
     const result = parseXmltv(xml);
     expect(result.programmes).toHaveLength(0);
     expect(result.warnings[0]).toContain("Přeskočeno 1 pořadů");
+  });
+});
+
+describe("getChannelFavoriteKey", () => {
+  it("uses a normalized TVG ID so favourites survive playlist URL changes", () => {
+    expect(getChannelFavoriteKey({
+      tvgId: " CT1.CZ ",
+      url: "https://stream-one.example.test/live.m3u8"
+    })).toBe("tvg:ct1.cz");
+
+    expect(getChannelFavoriteKey({
+      tvgId: "ct1.cz",
+      url: "https://stream-two.example.test/live.m3u8"
+    })).toBe("tvg:ct1.cz");
+  });
+
+  it("falls back to a normalized stream URL when the TVG ID is missing", () => {
+    expect(getChannelFavoriteKey({
+      url: "https://STREAM.example.test:443/live.m3u8"
+    })).toBe("url:https://stream.example.test/live.m3u8");
   });
 });

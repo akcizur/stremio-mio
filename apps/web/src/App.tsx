@@ -225,8 +225,6 @@ export function App() {
 
           {activeSection === "iptv" && <IptvScreen onPlay={playChannel} />}
 
-          {activeSection === "iptv" && <IptvScreen onPlay={playChannel} />}
-
           {activeSection === "player" && (
             <PlayerLab
               urlDraft={urlDraft}
