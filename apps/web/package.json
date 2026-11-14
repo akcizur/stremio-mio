@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mio/library": "0.1.0",
     "@mio/player-contract": "0.1.0",
     "@vitejs/plugin-react": "6.3.0",
     "hls.js": "1.7.4",

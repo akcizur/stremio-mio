@@ -1,9 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { LibraryEntry } from "@mio/library";
+import { IndexedDbLibraryRepository } from "@mio/library";
 import type { PlayableSource } from "@mio/player-contract";
 import { parsePlayableUrl } from "@mio/player-contract";
 import { WebPlayer } from "./components/WebPlayer";
 
 type SectionId = "discover" | "library" | "iptv" | "youtube" | "player" | "addons" | "settings";
+
+interface MediaCard {
+  id: string;
+  title: string;
+  subtitle: string;
+  category: "FILM" | "SÉRIE";
+  tone: "violet" | "amber" | "blue" | "green";
+}
 
 const navigation: Array<{ id: SectionId; label: string; icon: string }> = [
   { id: "discover", label: "Objevovat", icon: "⌕" },
@@ -14,7 +24,7 @@ const navigation: Array<{ id: SectionId; label: string; icon: string }> = [
   { id: "addons", label: "Doplňky", icon: "⌘" }
 ];
 
-const mediaCards = [
+const mediaCards: MediaCard[] = [
   { id: "nebula", title: "Nebula Protocol", subtitle: "Sci-fi · 2026", category: "FILM", tone: "violet" },
   { id: "afterlight", title: "Afterlight", subtitle: "Drama · 2025", category: "FILM", tone: "amber" },
   { id: "northbound", title: "Northbound", subtitle: "Thriller · 2026", category: "SÉRIE", tone: "blue" },
@@ -22,6 +32,7 @@ const mediaCards = [
 ];
 
 const demoHlsUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+const libraryRepository = new IndexedDbLibraryRepository();
 
 function sectionTitle(section: SectionId): string {
   return navigation.find((item) => item.id === section)?.label ?? "Nastavení";
@@ -33,7 +44,30 @@ export function App() {
   const [urlDraft, setUrlDraft] = useState("");
   const [source, setSource] = useState<PlayableSource | null>(null);
   const [playerMessage, setPlayerMessage] = useState("");
-  const [favourites, setFavourites] = useState<string[]>([]);
+  const [libraryItems, setLibraryItems] = useState<LibraryEntry[]>([]);
+  const [libraryReady, setLibraryReady] = useState(false);
+  const [libraryError, setLibraryError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    libraryRepository.list()
+      .then((items) => {
+        if (!cancelled) setLibraryItems(items);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setLibraryError(error instanceof Error ? error.message : "Lokální knihovnu se nepodařilo načíst.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLibraryReady(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleCards = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase("cs-CZ");
@@ -42,6 +76,41 @@ export function App() {
       (item.title + " " + item.subtitle + " " + item.category).toLocaleLowerCase("cs-CZ").includes(query)
     );
   }, [searchQuery]);
+
+  const savedIds = useMemo(() => new Set(libraryItems.map((item) => item.id)), [libraryItems]);
+
+  async function toggleSaved(item: MediaCard) {
+    try {
+      if (savedIds.has(item.id)) {
+        await libraryRepository.remove(item.id);
+      } else {
+        await libraryRepository.put({
+          id: item.id,
+          title: item.title,
+          subtitle: item.subtitle,
+          mediaType: item.category === "SÉRIE" ? "series" : "movie",
+          addedAt: Date.now(),
+          isFavorite: true,
+          playbackPositionSeconds: 0
+        });
+      }
+
+      setLibraryItems(await libraryRepository.list());
+      setLibraryError("");
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "Změnu knihovny se nepodařilo uložit.");
+    }
+  }
+
+  async function removeFromLibrary(id: string) {
+    try {
+      await libraryRepository.remove(id);
+      setLibraryItems(await libraryRepository.list());
+      setLibraryError("");
+    } catch (error) {
+      setLibraryError(error instanceof Error ? error.message : "Položku se nepodařilo odebrat.");
+    }
+  }
 
   function loadStream(value: string) {
     const result = parsePlayableUrl(value);
@@ -53,12 +122,6 @@ export function App() {
     setSource(result.source);
     setPlayerMessage("");
     setActiveSection("player");
-  }
-
-  function toggleFavourite(id: string) {
-    setFavourites((current) =>
-      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
-    );
   }
 
   return (
@@ -110,7 +173,7 @@ export function App() {
             <span><strong>MIO Preview</strong><small>Webový prototyp</small></span>
             <span className="profile-more">···</span>
           </div>
-          <div className="sidebar-version">MIO 0.1.0 · ARCHITECTURE PREVIEW</div>
+          <div className="sidebar-version">MIO 0.1.0 · WEB PREVIEW</div>
         </div>
       </aside>
 
@@ -137,10 +200,19 @@ export function App() {
           {activeSection === "discover" && (
             <Discover
               cards={visibleCards}
-              favourites={favourites}
-              onToggleFavourite={toggleFavourite}
+              savedIds={savedIds}
+              onToggleSaved={toggleSaved}
               onOpenPlayer={() => setActiveSection("player")}
               searchQuery={searchQuery}
+            />
+          )}
+
+          {activeSection === "library" && (
+            <LibraryScreen
+              items={libraryItems}
+              ready={libraryReady}
+              error={libraryError}
+              onRemove={removeFromLibrary}
             />
           )}
 
@@ -155,7 +227,7 @@ export function App() {
             />
           )}
 
-          {activeSection !== "discover" && activeSection !== "player" && (
+          {activeSection !== "discover" && activeSection !== "library" && activeSection !== "player" && (
             <ComingSoon section={activeSection} />
           )}
         </div>
@@ -165,14 +237,14 @@ export function App() {
 }
 
 interface DiscoverProps {
-  cards: typeof mediaCards;
-  favourites: string[];
-  onToggleFavourite: (id: string) => void;
+  cards: MediaCard[];
+  savedIds: Set<string>;
+  onToggleSaved: (item: MediaCard) => void;
   onOpenPlayer: () => void;
   searchQuery: string;
 }
 
-function Discover({ cards, favourites, onToggleFavourite, onOpenPlayer, searchQuery }: DiscoverProps) {
+function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }: DiscoverProps) {
   return (
     <div className="page-stack">
       <section className="hero-panel">
@@ -205,11 +277,11 @@ function Discover({ cards, favourites, onToggleFavourite, onOpenPlayer, searchQu
                 <span className="poster-orbit" />
                 <span className="poster-category">{item.category}</span>
                 <button
-                  className={"favourite-button" + (favourites.includes(item.id) ? " selected" : "")}
-                  onClick={() => onToggleFavourite(item.id)}
-                  title={favourites.includes(item.id) ? "Odebrat z oblíbených" : "Přidat do oblíbených"}
-                  aria-label={favourites.includes(item.id) ? "Odebrat z oblíbených" : "Přidat do oblíbených"}
-                >{favourites.includes(item.id) ? "♥" : "♡"}</button>
+                  className={"favourite-button" + (savedIds.has(item.id) ? " selected" : "")}
+                  onClick={() => onToggleSaved(item)}
+                  title={savedIds.has(item.id) ? "Odebrat z knihovny" : "Přidat do knihovny"}
+                  aria-label={savedIds.has(item.id) ? "Odebrat z knihovny" : "Přidat do knihovny"}
+                >{savedIds.has(item.id) ? "♥" : "♡"}</button>
                 <span className="poster-glyph">{item.title.slice(0, 1)}</span>
               </div>
               <div className="media-card-meta"><div><strong>{item.title}</strong><span>{item.subtitle}</span></div><button onClick={onOpenPlayer} aria-label={"Otevřít Player Lab pro " + item.title}>↗</button></div>
@@ -230,6 +302,48 @@ function Discover({ cards, favourites, onToggleFavourite, onOpenPlayer, searchQu
           <ModuleCard number="03" title="Nativní přehrávání" detail="AVPlayer, Media3 a desktopový MPV PoC." state="PROTOTYP" />
         </div>
       </section>
+    </div>
+  );
+}
+
+function LibraryScreen({
+  items,
+  ready,
+  error,
+  onRemove
+}: {
+  items: LibraryEntry[];
+  ready: boolean;
+  error: string;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <div className="page-stack library-view">
+      <div className="page-heading-row">
+        <div><span className="section-kicker">LOKÁLNÍ ÚLOŽIŠTĚ · INDEXEDDB</span><h1>Moje knihovna</h1><p>Uložené položky zůstávají v tomto prohlížeči i po obnovení stránky.</p></div>
+        <span className="status-pill"><span /> {items.length} POLOŽEK</span>
+      </div>
+      {error && <p className="form-message" role="alert">{error}</p>}
+      {!ready && <div className="library-empty">Načítám lokální knihovnu…</div>}
+      {ready && items.length === 0 && (
+        <div className="library-empty">
+          <div className="coming-icon">▤</div>
+          <h2>Knihovna je zatím prázdná</h2>
+          <p>V sekci Objevovat můžeš pomocí ikony srdce přidat demonstrační položky do své lokální knihovny.</p>
+        </div>
+      )}
+      {ready && items.length > 0 && (
+        <div className="library-list">
+          {items.map((item) => (
+            <article className="library-row" key={item.id}>
+              <div className="library-row-art">{item.title.slice(0, 1)}</div>
+              <div className="library-row-copy"><strong>{item.title}</strong><span>{item.subtitle} · {item.mediaType === "series" ? "Seriál" : "Film"}</span></div>
+              <span className="library-added">PŘIDÁNO {new Date(item.addedAt).toLocaleDateString("cs-CZ")}</span>
+              <button className="small-button" onClick={() => onRemove(item.id)}>Odebrat</button>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -311,7 +425,7 @@ function Capability({ label, state }: { label: string; state: "ready" | "planned
 function ComingSoon({ section }: { section: SectionId }) {
   const descriptions: Record<SectionId, string> = {
     discover: "",
-    library: "Osobní knihovna, oblíbené položky, historie a pokračování ve sledování.",
+    library: "",
     iptv: "Import playlistů M3U, správa kanálů, skupin a programového průvodce XMLTV.",
     youtube: "Vyhledávání a přehrávání přes oficiální YouTube API a embedded player.",
     player: "",
