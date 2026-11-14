@@ -39,7 +39,8 @@ První implementace:
 - design tokens a základní UI primitives;
 - z-složení aplikace (home, discover, search, detail, library, settings);
 - CI: install, lint, typecheck, unit tests, production build;
-- PWA app shell, ale bez předstírání offline video playback.
+- [x] PWA manifest, service worker a offline cache aplikačního shellu;
+- offline UI/data, ale bez předstírání offline video playback.
 
 **Akceptace:**
 - čisté checkout + install/build projde v CI;
@@ -80,6 +81,7 @@ První implementace:
 - [x] XMLTV import do 20 MB;
 - [x] převod časů s explicitním UTC offsetem do UTC;
 - [x] zobrazení aktuálního a následujícího pořadu;
+- [x] čtyřhodinová EPG časová osa a detail pořadu;
 - [x] párování kanálů podle přesné shody tvg-id a XMLTV channel id;
 - [ ] více pojmenovaných playlistů a slučování;
 - [ ] plánované aktualizace vzdálených playlistů a EPG;

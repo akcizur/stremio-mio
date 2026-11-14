@@ -19,6 +19,7 @@ Tento dokument rozlišuje skutečně implementované funkce od prototypů a plá
 - [x] bezpečná validace HTTP(S) URL bez userinfo
 - [x] HTML5 video pro přímé mediální URL
 - [x] HLS přes nativní podporu prohlížeče nebo HLS.js + MSE
+- [x] instalovatelný manifest, service worker a offline app shell
 - [x] základní stavové události, chyba, buffering a cleanup
 - [ ] skutečné cross-browser E2E přehrávání na fyzických zařízeních
 - [ ] MPEG-DASH
@@ -48,6 +49,7 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 - [x] ignorování běžné externí XMLTV DTD bez síťového fetch
 - [x] povinný explicitní UTC offset a normalizace na UTC
 - [x] aktuální/následující pořad pro přesně spárované tvg-id
+- [x] čtyřhodinová EPG časová osa s výběrem pořadu a detailem
 - [ ] více playlistů, automatické obnovování a synchronizace
 - [ ] ruční channel mapping a plný EPG grid
 - [ ] programový detail a metadata pořadů

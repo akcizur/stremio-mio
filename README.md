@@ -12,6 +12,7 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 - [x] Počáteční React + TypeScript + Vite web shell
 - [x] Sdílený kontrakt přehrávače a validace stream URL
 - [x] Web Player Lab: přímé URL a HLS přes nativní podporu / HLS.js
+- [x] Instalovatelný PWA shell a základní offline cache aplikačních souborů
 - [x] Základní CI: typecheck, unit testy a production build
 - [ ] Reálný playback test na zařízeních a prohlížečích
 - [ ] iOS AVPlayer bridge
@@ -19,6 +20,7 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 - [ ] Windows/Linux MPV/libmpv PoC
 - [x] Lokální M3U/M3U8 import, parser kanálů a skupin
 - [x] XMLTV import, UTC normalizace a párování podle tvg-id
+- [x] Čtyřhodinová EPG časová osa a detail pořadu
 - [x] Lokální IndexedDB persistence playlistu a EPG
 - [ ] Metadata katalog a autorizované externí konektory
 
