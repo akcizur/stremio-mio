@@ -4,6 +4,7 @@ import {
   IptvLocalRepository,
   getChannelFavoriteKey,
   getEpgMappingKey,
+  resolveEpgChannelId,
   parseM3uPlaylist,
   parseXmltv,
   type M3uChannel,
@@ -128,11 +129,8 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   );
 
   function getResolvedGuideChannelId(channel: M3uChannel): string | undefined {
-    const mappingKey = activePlaylistId ? getEpgMappingKey(activePlaylistId, channel) : "";
-    const manualMapping = mappingKey ? epgMappings[mappingKey] : undefined;
-    if (manualMapping) return manualMapping;
-    if (channel.tvgId && guideChannelIds.has(channel.tvgId)) return channel.tvgId;
-    return undefined;
+    if (!activePlaylistId) return undefined;
+    return resolveEpgChannelId(activePlaylistId, channel, epgMappings, guideChannelIds);
   }
 
   const guideMatchedCount = useMemo(
@@ -452,7 +450,11 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
             const isFavorite = favoriteKeys.has(favoriteKey);
             const mappingKey = activePlaylistId ? getEpgMappingKey(activePlaylistId, channel) : "";
             const automaticMapping = channel.tvgId && guideChannelIds.has(channel.tvgId) ? channel.tvgId : "";
-            const mappingValue = mappingDrafts[mappingKey] ?? epgMappings[mappingKey] ?? automaticMapping;
+            const savedManualMapping = epgMappings[mappingKey];
+            const validManualMapping = savedManualMapping && guideChannelIds.has(savedManualMapping)
+              ? savedManualMapping
+              : "";
+            const mappingValue = mappingDrafts[mappingKey] ?? validManualMapping ?? automaticMapping;
             return (
               <div className="iptv-channel-row iptv-guide-row" key={channel.id}>
                 <div className="iptv-channel-name">
@@ -486,7 +488,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
                   ) : <span className="programme-missing">{guide ? "Program nenalezen" : "Bez EPG"}</span>}
                   {guide && (
                     <label className="iptv-epg-map">
-                      <span>{epgMappings[mappingKey] ? "RUČNÍ PÁROVÁNÍ" : automaticMapping ? "TVG ID" : "PŘIŘADIT EPG"}</span>
+                      <span>{validManualMapping ? "RUČNÍ PÁROVÁNÍ" : automaticMapping ? "TVG ID" : "PŘIŘADIT EPG"}</span>
                       <input
                         type="text"
                         list="mio-epg-channel-options"

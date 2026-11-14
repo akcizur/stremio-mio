@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, getEpgMappingKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv } from "./index";
+import { getChannelFavoriteKey, getEpgMappingKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -204,5 +204,41 @@ describe("getEpgMappingKey", () => {
     expect(getEpgMappingKey("playlist-1", {
       url: "https://STREAM.example.test:443/live.m3u8"
     })).toBe("playlist:playlist-1:url:https://stream.example.test/live.m3u8");
+  });
+});
+
+describe("resolveEpgChannelId", () => {
+  const channel = {
+    tvgId: "iptv.ct1",
+    url: "https://stream.example.test/live.m3u8"
+  };
+
+  it("prefers a valid manual mapping over the automatic TVG ID", () => {
+    const key = getEpgMappingKey("playlist-1", channel);
+    expect(resolveEpgChannelId(
+      "playlist-1",
+      channel,
+      { [key]: "xmltv.ct1.cz" },
+      new Set(["iptv.ct1", "xmltv.ct1.cz"])
+    )).toBe("xmltv.ct1.cz");
+  });
+
+  it("falls back to automatic TVG matching when a saved mapping is no longer in the guide", () => {
+    const key = getEpgMappingKey("playlist-1", channel);
+    expect(resolveEpgChannelId(
+      "playlist-1",
+      channel,
+      { [key]: "removed.channel" },
+      new Set(["iptv.ct1"])
+    )).toBe("iptv.ct1");
+  });
+
+  it("returns no match when neither manual nor automatic IDs exist", () => {
+    expect(resolveEpgChannelId(
+      "playlist-1",
+      channel,
+      {},
+      new Set(["other.channel"])
+    )).toBeUndefined();
   });
 });

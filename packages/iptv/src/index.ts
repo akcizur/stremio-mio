@@ -79,6 +79,18 @@ export function getEpgMappingKey(
   return "playlist:" + encodeURIComponent(playlistId) + ":" + getChannelFavoriteKey(channel);
 }
 
+export function resolveEpgChannelId(
+  playlistId: string,
+  channel: Pick<M3uChannel, "tvgId" | "url">,
+  mappings: Record<string, string>,
+  availableXmltvIds: ReadonlySet<string>
+): string | undefined {
+  const manualId = mappings[getEpgMappingKey(playlistId, channel)];
+  if (manualId && availableXmltvIds.has(manualId)) return manualId;
+  if (channel.tvgId && availableXmltvIds.has(channel.tvgId)) return channel.tvgId;
+  return undefined;
+}
+
 function splitExtInf(value: string): { metadata: string; title: string } {
   let quote: string | null = null;
 
