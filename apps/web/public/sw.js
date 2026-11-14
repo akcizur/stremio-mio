@@ -28,20 +28,18 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match("/");
-          return cached || caches.match("/offline.html");
-        })
-    );
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(request);
+        if (response.ok) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put("/", response.clone());
+        }
+        return response;
+      } catch {
+        return (await caches.match("/")) || (await caches.match("/offline.html"));
+      }
+    })());
     return;
   }
 
@@ -52,15 +50,15 @@ self.addEventListener("fetch", (event) => {
 
   if (!isAppAsset) return;
 
-  event.respondWith(
-    caches.match(request).then(async (cached) => {
-      if (cached) return cached;
-      const response = await fetch(request);
-      if (response.ok) {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-      }
-      return response;
-    })
-  );
+  event.respondWith((async () => {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  })());
 });
