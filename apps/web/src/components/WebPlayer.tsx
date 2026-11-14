@@ -69,6 +69,11 @@ export function WebPlayer({ source, startAtSeconds, onProgress }: WebPlayerProps
       reportProgress(true);
     };
     const handleTimeUpdate = () => reportProgress();
+    const handleSeeked = () => reportProgress(true);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") reportProgress(true);
+    };
+    const handlePageHide = () => reportProgress(true);
     const handlePause = () => {
       if (!video.ended && video.currentTime > 0) {
         setStatus("paused");
@@ -94,7 +99,10 @@ export function WebPlayer({ source, startAtSeconds, onProgress }: WebPlayerProps
     video.addEventListener("canplay", handleLoaded);
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("seeked", handleSeeked);
     video.addEventListener("pause", handlePause);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("error", handleError);
@@ -104,7 +112,10 @@ export function WebPlayer({ source, startAtSeconds, onProgress }: WebPlayerProps
       video.removeEventListener("canplay", handleLoaded);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("seeked", handleSeeked);
       video.removeEventListener("pause", handlePause);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("error", handleError);
