@@ -41,6 +41,24 @@ export interface XmltvParseResult {
   errors: string[];
 }
 
+export interface EpochRange {
+  start: number;
+  end: number;
+}
+
+export function getLocalDayRange(dateValue: string): EpochRange | null {
+  const match = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const startDate = new Date(year, month - 1, day);
+  if (startDate.getFullYear() !== year || startDate.getMonth() !== month - 1 || startDate.getDate() !== day) return null;
+  const endDate = new Date(year, month - 1, day + 1);
+  return { start: startDate.getTime(), end: endDate.getTime() };
+}
+
 export interface StoredIptvPlaylist {
   id: string;
   name: string;

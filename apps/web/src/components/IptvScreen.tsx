@@ -525,7 +525,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         </div>
       )}
 
-      {guide && channels.length > 0 && <EpgGrid channels={epgChannels} guide={guide} now={now} />}
+      {guide && channels.length > 0 && <EpgGrid channels={epgChannels} guide={guide} now={now} onPlay={onPlay} />}
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>

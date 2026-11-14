@@ -248,3 +248,55 @@
     min-height: 30px;
   }
 }
+
+/* Full-day EPG controls and horizontally navigable timeline */
+.epg-grid-heading { align-items: center; }
+.epg-date-controls { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.epg-date-picker { display: flex; flex-direction: column; gap: 5px; }
+.epg-date-picker input {
+  min-height: 34px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px;
+  color: #d5dccf; color-scheme: dark; background: #0b0e14; font: 10px var(--mono);
+}
+.epg-nav-button, .epg-today-button {
+  min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0 10px;
+  border: 1px solid var(--line); border-radius: 6px; color: #bec8b4; background: rgba(255,255,255,.025);
+  font-size: 16px; cursor: pointer;
+}
+.epg-today-button {
+  color: #e5f2c4; border-color: rgba(216,255,114,.26); background: rgba(216,255,114,.06);
+  font-size: 9px; font-weight: 600;
+}
+.epg-day-summary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 17px;
+  border-bottom: 1px solid var(--line); color: #7e8993; font-size: 9px;
+}
+.epg-day-summary strong { color: #d5dccf; font-size: 10px; font-weight: 600; }
+.epg-day-summary span { font-family: var(--mono); }
+.epg-day-summary small { margin-left: auto; color: #69747f; font: 8px var(--mono); }
+.epg-scroll { max-width: 100%; overflow: auto; overscroll-behavior-x: contain; outline: none; }
+.epg-scroll:focus-visible { box-shadow: inset 0 0 0 1px rgba(216,255,114,.3); }
+.epg-timeline { max-width: none; }
+.epg-axis, .epg-row { width: max-content; }
+.epg-axis-label, .epg-channel-label {
+  position: sticky; left: 0; z-index: 4; background: #121820;
+}
+.epg-axis-label { z-index: 5; }
+.epg-axis-times { height: 35px; }
+.epg-axis-times span { width: 42px; text-align: center; white-space: nowrap; }
+.epg-lane { height: 61px; }
+.epg-lane-lines { display: block; }
+.epg-lane-lines span {
+  position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px solid rgba(255,255,255,.055);
+}
+.epg-programme { min-width: 0; }
+.epg-modal-channel { margin-top: 9px; color: #b7c4a2; font-size: 10px; }
+.epg-modal-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
+.epg-modal-actions .button-primary { min-height: 38px; }
+@media (max-width: 760px) {
+  .epg-grid-heading { align-items: flex-start; }
+  .epg-date-controls { width: 100%; display: grid; grid-template-columns: 34px minmax(0,1fr) 34px auto; }
+  .epg-date-picker input { width: 100%; }
+  .epg-day-summary small { width: 100%; margin-left: 0; }
+  .epg-axis-label, .epg-channel-label { width: 122px; }
+  .epg-modal-actions .button-primary { width: 100%; justify-content: center; }
+}

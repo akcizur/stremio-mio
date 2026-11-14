@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, getEpgMappingKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId } from "./index";
+import { getChannelFavoriteKey, getEpgMappingKey, getLocalDayRange, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -240,5 +240,22 @@ describe("resolveEpgChannelId", () => {
       {},
       new Set(["other.channel"])
     )).toBeUndefined();
+  });
+});
+
+describe("getLocalDayRange", () => {
+  it("returns local midnight boundaries and the following midnight", () => {
+    const range = getLocalDayRange("2026-11-14");
+    expect(range).not.toBeNull();
+    if (!range) return;
+    const start = new Date(range.start);
+    const end = new Date(range.end);
+    expect([start.getFullYear(), start.getMonth(), start.getDate(), start.getHours()]).toEqual([2026, 10, 14, 0]);
+    expect([end.getFullYear(), end.getMonth(), end.getDate(), end.getHours()]).toEqual([2026, 10, 15, 0]);
+  });
+
+  it("rejects invalid calendar dates", () => {
+    expect(getLocalDayRange("2026-02-30")).toBeNull();
+    expect(getLocalDayRange("not-a-date")).toBeNull();
   });
 });
