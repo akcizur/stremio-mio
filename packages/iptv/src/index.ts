@@ -84,6 +84,20 @@ export interface StoredXmltvGuide {
   programmes: XmltvProgramme[];
 }
 
+export interface EpgReminder {
+  id: string;
+  playlistId: string;
+  programmeId: string;
+  channelId: string;
+  channelName: string;
+  title: string;
+  start: number;
+  stop: number;
+  createdAt: number;
+  notificationsEnabled: boolean;
+  notifiedAt: number | null;
+}
+
 export function getChannelFavoriteKey(channel: Pick<M3uChannel, "tvgId" | "url">): string {
   const tvgId = channel.tvgId?.trim();
   if (tvgId) return "tvg:" + tvgId.toLocaleLowerCase("en-US");
@@ -107,6 +121,49 @@ export function resolveEpgChannelId(
   if (manualId && availableXmltvIds.has(manualId)) return manualId;
   if (channel.tvgId && availableXmltvIds.has(channel.tvgId)) return channel.tvgId;
   return undefined;
+}
+
+export function getEpgReminderId(playlistId: string, channelId: string, start: number): string {
+  return "playlist:" + encodeURIComponent(playlistId) +
+    ":channel:" + encodeURIComponent(channelId) +
+    ":start:" + Math.trunc(start);
+}
+
+export function sortEpgReminders(reminders: EpgReminder[]): EpgReminder[] {
+  return [...reminders].sort((left, right) =>
+    left.start - right.start || left.createdAt - right.createdAt
+  );
+}
+
+export function isEpgReminderDue(reminder: EpgReminder, now: number, leadMinutes = 5): boolean {
+  const leadMs = Math.max(0, Number.isFinite(leadMinutes) ? leadMinutes : 5) * 60_000;
+  return reminder.notifiedAt === null &&
+    reminder.start > now &&
+    reminder.stop > reminder.start &&
+    now >= reminder.start - leadMs;
+}
+
+function sanitizeEpgReminders(value: unknown): EpgReminder[] {
+  if (!Array.isArray(value)) return [];
+  const valid = value.filter((item): item is EpgReminder => {
+    if (!item || typeof item !== "object") return false;
+    const reminder = item as Partial<EpgReminder>;
+    return typeof reminder.id === "string" && reminder.id.length > 0 &&
+      typeof reminder.playlistId === "string" && reminder.playlistId.length > 0 &&
+      typeof reminder.programmeId === "string" &&
+      typeof reminder.channelId === "string" && reminder.channelId.length > 0 &&
+      typeof reminder.channelName === "string" &&
+      typeof reminder.title === "string" && reminder.title.length > 0 &&
+      typeof reminder.start === "number" && Number.isFinite(reminder.start) &&
+      typeof reminder.stop === "number" && Number.isFinite(reminder.stop) &&
+      reminder.stop > reminder.start &&
+      typeof reminder.createdAt === "number" && Number.isFinite(reminder.createdAt) &&
+      typeof reminder.notificationsEnabled === "boolean" &&
+      (reminder.notifiedAt === null ||
+        (typeof reminder.notifiedAt === "number" && Number.isFinite(reminder.notifiedAt)));
+  });
+  const unique = new Map(valid.map((reminder) => [reminder.id, reminder]));
+  return sortEpgReminders([...unique.values()]);
 }
 
 function splitExtInf(value: string): { metadata: string; title: string } {
@@ -543,6 +600,14 @@ export class IptvLocalRepository {
         .map(([key, value]) => [key, value.trim()])
     );
     await this.put("epg-mappings", sanitized);
+  }
+
+  async loadEpgReminders(): Promise<EpgReminder[]> {
+    return sanitizeEpgReminders(await this.get<unknown>("epg-reminders"));
+  }
+
+  async saveEpgReminders(reminders: EpgReminder[]): Promise<void> {
+    await this.put("epg-reminders", sanitizeEpgReminders(reminders));
   }
 
   async clearGuide(): Promise<void> {

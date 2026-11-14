@@ -53,6 +53,9 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 - [x] aktuální/následující pořad podle automatického nebo ručního párování kanálů
 - [x] ruční XMLTV channel mapping uložený per playlist v IndexedDB
 - [x] celodenní EPG časová osa s výběrem data a navigací po dnech
+- [x] lokální EPG připomínky per playlist, uložené v IndexedDB
+- [x] upozornění pět minut před pořadem v otevřené aplikaci
+- [ ] systémové připomínky po zavření aplikace / server push
 - [x] horizontální posun programu po hodinách a skok na aktuální čas
 - [x] detail pořadu s přímým spuštěním příslušné stanice
 - [ ] automatické obnovování a synchronizace playlistů

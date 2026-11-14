@@ -331,3 +331,35 @@
   .history-progress { width: 100%; flex: none; }
   .history-row .small-button { padding: 6px 8px; font-size: 8px; }
 }
+
+
+/* Local EPG reminder planner */
+.epg-reminders-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.epg-reminders-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 17px 18px 13px; border-bottom: 1px solid var(--line); }
+.epg-reminders-heading h2 { margin: 5px 0 4px; font: 500 17px var(--display); }
+.epg-reminders-heading p { margin: 0; color: #7f8992; font-size: 9px; }
+.epg-reminders-count { color: var(--accent); font: 8px var(--mono); white-space: nowrap; }
+.epg-reminders-empty { padding: 16px 18px; color: #7f8992; font-size: 10px; }
+.epg-reminders-list { display: flex; flex-direction: column; }
+.epg-reminder-row { min-width: 0; display: grid; grid-template-columns: 58px minmax(0,1fr) auto auto; align-items: center; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.epg-reminder-row:last-child { border-bottom: 0; }
+.epg-reminder-time { display: flex; flex-direction: column; gap: 3px; }
+.epg-reminder-time strong { color: var(--accent); font: 11px var(--mono); }
+.epg-reminder-time span { color: #727d87; font: 8px var(--mono); }
+.epg-reminder-copy { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.epg-reminder-copy strong { overflow: hidden; color: #d9ded6; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.epg-reminder-copy span { color: #7f8992; font-size: 9px; }
+.epg-reminder-state { color: #a6b48c; font: 8px var(--mono); white-space: nowrap; }
+.epg-reminder-state.is-notified { color: var(--accent); }
+.epg-reminder-notice { margin: 0; padding: 9px 18px; border-bottom: 1px solid rgba(216,255,114,.12); color: var(--accent); background: rgba(216,255,114,.045); font-size: 9px; }
+.epg-modal-actions { flex-wrap: wrap; gap: 8px; }
+.epg-modal-actions button { min-height: 38px; }
+.epg-reminder-button { justify-content: center; }
+@media (max-width: 640px) {
+  .epg-reminders-heading { align-items: flex-start; flex-direction: column; }
+  .epg-reminder-row { grid-template-columns: 48px minmax(0,1fr) auto; gap: 8px; padding: 10px; }
+  .epg-reminder-state { grid-column: 2; }
+  .epg-reminder-row .small-button { grid-column: 3; grid-row: 1 / span 2; }
+  .epg-modal-actions { flex-direction: column; }
+  .epg-modal-actions button { width: 100%; }
+}

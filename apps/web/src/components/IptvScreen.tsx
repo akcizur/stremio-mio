@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { EpgGrid } from "./EpgGrid";
 import {
   IptvLocalRepository,
   getChannelFavoriteKey,
   getEpgMappingKey,
+  getEpgReminderId,
+  isEpgReminderDue,
+  sortEpgReminders,
   resolveEpgChannelId,
   parseM3uPlaylist,
   parseXmltv,
+  type EpgReminder,
   type M3uChannel,
   type XmltvProgramme,
   type StoredIptvPlaylist,
@@ -35,6 +39,10 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   const [guideError, setGuideError] = useState("");
   const [isReady, setIsReady] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [reminders, setReminders] = useState<EpgReminder[]>([]);
+  const [reminderError, setReminderError] = useState("");
+  const [reminderNotice, setReminderNotice] = useState("");
+  const notifiedReminderIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -44,9 +52,10 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       iptvRepository.loadActivePlaylistId(),
       iptvRepository.loadGuide(),
       iptvRepository.loadFavoriteChannelKeys(),
-      iptvRepository.loadEpgMappings()
+      iptvRepository.loadEpgMappings(),
+      iptvRepository.loadEpgReminders()
     ])
-      .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys, storedEpgMappings]) => {
+      .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys, storedEpgMappings, storedReminders]) => {
         if (cancelled) return;
         setPlaylists(storedPlaylists);
         const selected = storedPlaylists.find((playlist) => playlist.id === storedActiveId) ?? storedPlaylists[0] ?? null;
@@ -57,6 +66,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         if (storedGuide) setGuide(storedGuide);
         setFavoriteKeys(new Set(storedFavoriteKeys));
         setEpgMappings(storedEpgMappings);
+        setReminders(storedReminders);
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -76,6 +86,39 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     const interval = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
+  useEffect(() => {
+    if (!isReady) return;
+    const due = reminders.filter((reminder) =>
+      isEpgReminderDue(reminder, now) && !notifiedReminderIds.current.has(reminder.id)
+    );
+    if (due.length === 0) return;
+
+    const dueIds = new Set(due.map((reminder) => reminder.id));
+    due.forEach((reminder) => notifiedReminderIds.current.add(reminder.id));
+    const updated = reminders.map((reminder) =>
+      dueIds.has(reminder.id) ? { ...reminder, notifiedAt: now } : reminder
+    );
+    setReminders(updated);
+    void iptvRepository.saveEpgReminders(updated).catch((cause: unknown) => {
+      setReminderError(cause instanceof Error ? cause.message : "Stav připomínek se nepodařilo uložit.");
+    });
+
+    const notificationTitles: string[] = [];
+    for (const reminder of due) {
+      notificationTitles.push(reminder.title);
+      if (!reminder.notificationsEnabled || typeof Notification === "undefined" || Notification.permission !== "granted") continue;
+      try {
+        new Notification("Za chvíli začíná: " + reminder.title, {
+          body: reminder.channelName + " · " + new Date(reminder.start).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" }),
+          tag: reminder.id
+        });
+      } catch {
+        // In-app reminder state is still updated when browser notifications are unavailable.
+      }
+    }
+    setReminderNotice(notificationTitles.join(", ") + (notificationTitles.length === 1 ? " začíná za chvíli." : " začínají za chvíli."));
+  }, [isReady, now, reminders]);
+
 
   const activePlaylist = useMemo(
     () => playlists.find((playlist) => playlist.id === activePlaylistId) ?? null,
@@ -146,6 +189,13 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     [channels, favoriteKeys]
   );
 
+  const activeReminders = useMemo(
+    () => activePlaylistId
+      ? sortEpgReminders(reminders.filter((reminder) => reminder.playlistId === activePlaylistId && reminder.stop > now))
+      : [],
+    [reminders, activePlaylistId, now]
+  );
+
   async function toggleFavorite(channel: M3uChannel) {
     const key = getChannelFavoriteKey(channel);
     const nextKeys = new Set(favoriteKeys);
@@ -158,6 +208,79 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Oblíbené kanály se nepodařilo uložit.");
+    }
+  }
+
+  async function toggleEpgReminder(channel: M3uChannel, programme: XmltvProgramme) {
+    if (!activePlaylistId) return;
+    const id = getEpgReminderId(activePlaylistId, programme.channelId, programme.start);
+    const exists = reminders.some((reminder) => reminder.id === id);
+
+    if (exists) {
+      const updated = reminders.filter((reminder) => reminder.id !== id);
+      try {
+        await iptvRepository.saveEpgReminders(updated);
+        setReminders(updated);
+        setReminderError("");
+        setReminderNotice("Připomínka pořadu „" + programme.title + "“ byla zrušena.");
+      } catch (cause) {
+        setReminderError(cause instanceof Error ? cause.message : "Připomínku se nepodařilo zrušit.");
+      }
+      return;
+    }
+
+    if (programme.stop <= Date.now() || programme.stop <= programme.start) {
+      setReminderError("Na odvysílaný nebo neplatný pořad už nelze nastavit připomínku.");
+      return;
+    }
+
+    let notificationsEnabled = false;
+    if (typeof Notification !== "undefined") {
+      try {
+        const permission = Notification.permission === "default"
+          ? await Notification.requestPermission()
+          : Notification.permission;
+        notificationsEnabled = permission === "granted";
+      } catch {
+        notificationsEnabled = false;
+      }
+    }
+
+    const reminder: EpgReminder = {
+      id,
+      playlistId: activePlaylistId,
+      programmeId: programme.id,
+      channelId: programme.channelId,
+      channelName: channel.name,
+      title: programme.title,
+      start: programme.start,
+      stop: programme.stop,
+      createdAt: Date.now(),
+      notificationsEnabled,
+      notifiedAt: null
+    };
+    const updated = sortEpgReminders([...reminders, reminder]);
+    try {
+      await iptvRepository.saveEpgReminders(updated);
+      setReminders(updated);
+      setReminderError("");
+      setReminderNotice(notificationsEnabled
+        ? "Připomínka nastavena. Prohlížeč zobrazí upozornění pět minut před začátkem, pokud MIO zůstane otevřené."
+        : "Připomínka uložena. Automatická oznámení nejsou povolena; kontrola probíhá pouze v otevřeném MIO.");
+    } catch (cause) {
+      setReminderError(cause instanceof Error ? cause.message : "Připomínku se nepodařilo uložit.");
+    }
+  }
+
+  async function removeEpgReminder(id: string) {
+    const updated = reminders.filter((reminder) => reminder.id !== id);
+    try {
+      await iptvRepository.saveEpgReminders(updated);
+      setReminders(updated);
+      notifiedReminderIds.current.delete(id);
+      setReminderError("");
+    } catch (cause) {
+      setReminderError(cause instanceof Error ? cause.message : "Připomínku se nepodařilo odebrat.");
     }
   }
 
@@ -405,6 +528,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       </section>
 
       {guideError && <p className="form-message" role="alert">{guideError}</p>}
+      {reminderError && <p className="form-message" role="alert">{reminderError}</p>}
       {guideWarnings.length > 0 && (
         <details className="iptv-warnings">
           <summary>{guideWarnings.length} upozornění při importu EPG</summary>
@@ -525,11 +649,63 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         </div>
       )}
 
-      {guide && channels.length > 0 && <EpgGrid channels={epgChannels} guide={guide} now={now} onPlay={onPlay} />}
+      {activePlaylistId && guide && (
+        <section className="epg-reminders-card">
+          <div className="epg-reminders-heading">
+            <div>
+              <span className="section-kicker">LOKÁLNÍ PLÁNOVAČ</span>
+              <h2>Připomínky pořadů</h2>
+              <p>Upozornění se spouští pět minut před začátkem. MIO musí zůstat otevřené.</p>
+            </div>
+            <span className="epg-reminders-count">{activeReminders.length} NASTAVENO</span>
+          </div>
+          {reminderNotice && <p className="epg-reminder-notice" role="status" aria-live="polite">{reminderNotice}</p>}
+          {activeReminders.length === 0 ? (
+            <div className="epg-reminders-empty">Zatím nemáš žádnou připomínku. Otevři pořad v časové ose a zvol „Připomenout“.</div>
+          ) : (
+            <div className="epg-reminders-list">
+              {activeReminders.slice(0, 8).map((reminder) => (
+                <article className="epg-reminder-row" key={reminder.id}>
+                  <div className="epg-reminder-time">
+                    <strong>{new Date(reminder.start).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}</strong>
+                    <span>{new Date(reminder.start).toLocaleDateString("cs-CZ", { day: "numeric", month: "short" })}</span>
+                  </div>
+                  <div className="epg-reminder-copy">
+                    <strong>{reminder.title}</strong>
+                    <span>{reminder.channelName}</span>
+                  </div>
+                  <span className={"epg-reminder-state" + (reminder.notifiedAt ? " is-notified" : "")}>
+                    {reminder.notifiedAt
+                      ? "Připomenuto"
+                      : now >= reminder.start - 5 * 60_000
+                        ? "Za chvíli"
+                        : reminder.notificationsEnabled
+                          ? "Upozornění aktivní"
+                          : "Pouze v aplikaci"}
+                  </span>
+                  <button className="small-button" type="button" onClick={() => void removeEpgReminder(reminder.id)}>Zrušit</button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {guide && channels.length > 0 && activePlaylistId && (
+        <EpgGrid
+          channels={epgChannels}
+          guide={guide}
+          now={now}
+          playlistId={activePlaylistId}
+          reminders={reminders}
+          onPlay={onPlay}
+          onToggleReminder={(channel, programme) => void toggleEpgReminder(channel, programme)}
+        />
+      )}
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>
-        <p>Playlisty, EPG i ruční párování kanálů se ukládají lokálně do IndexedDB. Automatické párování používá shodu M3U tvg-id a XMLTV channel id; rozdílné identifikátory lze upravit přímo u stanice. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
+        <p>Playlisty, EPG, ruční párování i připomínky se ukládají lokálně do IndexedDB. Připomínky se kontrolují v otevřené aplikaci a mohou použít oznámení prohlížeče; po úplném zavření MIO není bez serverového push nebo nativního plánovače zaručené upozornění. Automatické párování používá shodu M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
       </div>
     </div>
   );

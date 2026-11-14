@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, getEpgMappingKey, getLocalDayRange, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId } from "./index";
+import { getChannelFavoriteKey, getEpgMappingKey, getEpgReminderId, getLocalDayRange, isEpgReminderDue, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId, sortEpgReminders, type EpgReminder } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -257,5 +257,44 @@ describe("getLocalDayRange", () => {
   it("rejects invalid calendar dates", () => {
     expect(getLocalDayRange("2026-02-30")).toBeNull();
     expect(getLocalDayRange("not-a-date")).toBeNull();
+  });
+});
+
+
+describe("EPG reminders", () => {
+  const reminder: EpgReminder = {
+    id: getEpgReminderId("playlist-1", "ct1.cz", 1_800_000),
+    playlistId: "playlist-1",
+    programmeId: "ct1.cz:1800000:News",
+    channelId: "ct1.cz",
+    channelName: "ČT 1",
+    title: "Večerní zprávy",
+    start: 1_800_000,
+    stop: 5_400_000,
+    createdAt: 1_000,
+    notificationsEnabled: true,
+    notifiedAt: null
+  };
+
+  it("creates stable reminder IDs scoped by playlist, channel and start time", () => {
+    expect(getEpgReminderId("playlist-1", "ct1.cz", 1_800_000)).toBe(reminder.id);
+    expect(getEpgReminderId("playlist-2", "ct1.cz", 1_800_000)).not.toBe(reminder.id);
+    expect(getEpgReminderId("playlist-1", "ct2.cz", 1_800_000)).not.toBe(reminder.id);
+    expect(getEpgReminderId("playlist-1", "ct1.cz", 1_800_001)).not.toBe(reminder.id);
+  });
+
+  it("becomes due five minutes before the programme and only once", () => {
+    expect(isEpgReminderDue(reminder, reminder.start - 5 * 60_000 - 1)).toBe(false);
+    expect(isEpgReminderDue(reminder, reminder.start - 5 * 60_000)).toBe(true);
+    expect(isEpgReminderDue(reminder, reminder.start - 1)).toBe(true);
+    expect(isEpgReminderDue({ ...reminder, notifiedAt: reminder.start - 5 * 60_000 }, reminder.start - 1)).toBe(false);
+    expect(isEpgReminderDue(reminder, reminder.start)).toBe(false);
+  });
+
+  it("sorts reminders by programme start without mutating the original list", () => {
+    const later = { ...reminder, id: "later", start: reminder.start + 60_000 };
+    const sorted = sortEpgReminders([later, reminder]);
+    expect(sorted.map((entry) => entry.id)).toEqual([reminder.id, "later"]);
+    expect([later.id, reminder.id]).toEqual(["later", reminder.id]);
   });
 });

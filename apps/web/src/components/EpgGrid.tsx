@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { M3uChannel, StoredXmltvGuide, XmltvProgramme } from "@mio/iptv";
-import { getLocalDayRange } from "@mio/iptv";
+import type { EpgReminder, M3uChannel, StoredXmltvGuide, XmltvProgramme } from "@mio/iptv";
+import { getEpgReminderId, getLocalDayRange } from "@mio/iptv";
 
 interface EpgGridProps {
   channels: M3uChannel[];
   guide: StoredXmltvGuide | null;
   now: number;
+  playlistId: string;
+  reminders: EpgReminder[];
   onPlay: (channel: M3uChannel) => void;
+  onToggleReminder: (channel: M3uChannel, programme: XmltvProgramme) => void;
 }
 
 interface SelectedProgramme {
@@ -36,7 +39,7 @@ function formatDay(value: number): string {
   });
 }
 
-export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
+export function EpgGrid({ channels, guide, now, playlistId, reminders, onPlay, onToggleReminder }: EpgGridProps) {
   const [selected, setSelected] = useState<SelectedProgramme | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(now));
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,6 +76,10 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
 
   const currentPosition = ((now - dayRange.start) / HOUR) * HOUR_WIDTH;
   const rangeLabel = formatTime(dayRange.start) + " – " + formatTime(dayRange.end - 1);
+  const selectedReminderId = selected
+    ? getEpgReminderId(playlistId, selected.programme.channelId, selected.programme.start)
+    : "";
+  const selectedHasReminder = Boolean(selectedReminderId && reminders.some((reminder) => reminder.id === selectedReminderId));
 
   function scrollToCurrentTime(behavior: ScrollBehavior = "smooth") {
     const viewport = scrollRef.current;
@@ -326,6 +333,15 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
             <p>{selected.programme.description || "Popis pořadu není v EPG k dispozici."}</p>
             {selected.programme.language && <small>Jazyk metadat: {selected.programme.language}</small>}
             <div className="epg-modal-actions">
+              <button
+                className="button-secondary epg-reminder-button"
+                type="button"
+                disabled={!selectedHasReminder && selected.programme.stop <= now}
+                aria-pressed={selectedHasReminder}
+                onClick={() => onToggleReminder(selected.channel, selected.programme)}
+              >
+                {selectedHasReminder ? "Zrušit připomínku" : "Připomenout · 5 min předem"}
+              </button>
               <button className="button-primary" type="button" onClick={() => {
                 onPlay(selected.channel);
                 setSelected(null);

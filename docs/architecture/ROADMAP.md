@@ -82,7 +82,9 @@ První implementace:
 - [x] XMLTV import do 20 MB;
 - [x] převod časů s explicitním UTC offsetem do UTC;
 - [x] zobrazení aktuálního a následujícího pořadu;
-- [x] čtyřhodinová EPG časová osa a detail pořadu;
+- [x] celodenní EPG časová osa a detail pořadu;
+- [x] lokální EPG připomínky per playlist, kontrola pět minut před začátkem při otevřené aplikaci;
+- [ ] spolehlivé systémové připomínky po zavření aplikace přes nativní plánovač nebo server push;
 - [x] párování kanálů podle přesné shody tvg-id a XMLTV channel id;
 - [ ] více pojmenovaných playlistů a slučování;
 - [ ] plánované aktualizace vzdálených playlistů a EPG;
