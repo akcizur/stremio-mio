@@ -155,7 +155,9 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
     const step = direction === "up" ? -1 : 1;
 
     for (let rowIndex = currentIndex + step; rowIndex >= 0 && rowIndex < rows.length; rowIndex += step) {
-      const candidates = Array.from(rows[rowIndex].querySelectorAll<HTMLButtonElement>(".epg-programme"))
+      const row = rows[rowIndex];
+      if (!row) continue;
+      const candidates = Array.from(row.querySelectorAll<HTMLButtonElement>(".epg-programme"))
         .map((button) => {
           const rect = button.getBoundingClientRect();
           const centerX = rect.left + rect.width / 2;
