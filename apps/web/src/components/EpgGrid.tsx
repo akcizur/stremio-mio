@@ -40,6 +40,7 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
   const [selected, setSelected] = useState<SelectedProgramme | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => toDateInputValue(now));
   const scrollRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLElement>(null);
 
   const dayRange = useMemo(
     () => getLocalDayRange(selectedDate) ?? getLocalDayRange(toDateInputValue(now))!,
@@ -111,13 +112,85 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
     if (isToday) scrollToCurrentTime("auto");
     else viewport.scrollTo({ left: 0, behavior: "auto" });
   }, [selectedDate]);
+  useEffect(() => {
+    if (!selected) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modalRef.current?.focus();
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
+  }, [selected]);
+
+  function focusProgramme(
+    current: HTMLButtonElement,
+    direction: "left" | "right" | "up" | "down"
+  ): boolean {
+    const currentRow = current.closest<HTMLElement>(".epg-row");
+    if (!currentRow) return false;
+
+    const currentRect = current.getBoundingClientRect();
+    const currentCenterX = currentRect.left + currentRect.width / 2;
+
+    if (direction === "left" || direction === "right") {
+      const candidates = Array.from(currentRow.querySelectorAll<HTMLButtonElement>(".epg-programme"))
+        .map((button) => {
+          const rect = button.getBoundingClientRect();
+          return { button, centerX: rect.left + rect.width / 2 };
+        })
+        .filter(({ button, centerX }) =>
+          button !== current && (direction === "left" ? centerX < currentCenterX : centerX > currentCenterX)
+        )
+        .sort((a, b) => direction === "left" ? b.centerX - a.centerX : a.centerX - b.centerX);
+
+      const next = candidates[0]?.button;
+      if (!next) return false;
+      next.focus();
+      return true;
+    }
+
+    const viewport = scrollRef.current;
+    if (!viewport) return false;
+    const rows = Array.from(viewport.querySelectorAll<HTMLElement>(".epg-row"));
+    const currentIndex = rows.indexOf(currentRow);
+    const step = direction === "up" ? -1 : 1;
+
+    for (let rowIndex = currentIndex + step; rowIndex >= 0 && rowIndex < rows.length; rowIndex += step) {
+      const candidates = Array.from(rows[rowIndex].querySelectorAll<HTMLButtonElement>(".epg-programme"))
+        .map((button) => {
+          const rect = button.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          return { button, distance: Math.abs(centerX - currentCenterX) };
+        })
+        .sort((a, b) => a.distance - b.distance);
+
+      const next = candidates[0]?.button;
+      if (!next) continue;
+      next.focus();
+      return true;
+    }
+
+    return false;
+  }
 
   function handleTimelineKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const currentProgramme = event.target instanceof HTMLElement
+      ? event.target.closest<HTMLButtonElement>(".epg-programme")
+      : null;
+
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-      const viewport = scrollRef.current;
-      if (!viewport) return;
       event.preventDefault();
-      viewport.scrollBy({ left: event.key === "ArrowRight" ? HOUR_WIDTH : -HOUR_WIDTH, behavior: "smooth" });
+      const direction = event.key === "ArrowLeft" ? "left" : "right";
+      const moved = currentProgramme ? focusProgramme(currentProgramme, direction) : false;
+      if (!moved) {
+        scrollRef.current?.scrollBy({
+          left: direction === "right" ? HOUR_WIDTH : -HOUR_WIDTH,
+          behavior: "smooth"
+        });
+      }
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      if (!currentProgramme) return;
+      event.preventDefault();
+      focusProgramme(currentProgramme, event.key === "ArrowUp" ? "up" : "down");
     } else if (event.key === "PageUp") {
       event.preventDefault();
       shiftDay(-1);
@@ -215,6 +288,7 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
                         key={programme.id}
                         style={{ left: left + "px", width: Math.max(10, width - 3) + "px" }}
                         onClick={() => setSelected({ programme, channel })}
+                        aria-label={programme.title + ", " + formatTime(programme.start) + " až " + formatTime(programme.stop) + ", " + channel.name}
                         title={programme.title + " · " + formatTime(programme.start) + "–" + formatTime(programme.stop)}
                       >
                         <strong>{programme.title}</strong>
@@ -231,7 +305,12 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
 
       {selected && (
         <div className="epg-modal-backdrop" role="presentation" onClick={() => setSelected(null)}>
-          <section className="epg-modal" role="dialog" aria-modal="true" aria-labelledby="epg-modal-title" onClick={(event) => event.stopPropagation()}>
+          <section ref={modalRef} tabIndex={-1} className="epg-modal" role="dialog" aria-modal="true" aria-labelledby="epg-modal-title" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setSelected(null);
+            }
+          }}>
             <div className="epg-modal-top">
               <span className="section-kicker">DETAIL POŘADU</span>
               <button className="icon-button" aria-label="Zavřít detail" onClick={() => setSelected(null)}>×</button>

@@ -125,6 +125,7 @@
 .epg-now-line::before { content: ""; position: absolute; top: 0; left: -3px; width: 7px; height: 7px; border-radius: 50%; background: #d8ff72; }
 .epg-programme { position: absolute; z-index: 2; top: 7px; bottom: 7px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; overflow: hidden; padding: 5px 8px; border: 1px solid rgba(148,166,119,.15); border-radius: 5px; color: #c8d0bf; background: linear-gradient(120deg, rgba(115,142,80,.18), rgba(115,142,80,.08)); text-align: left; }
 .epg-programme:hover { border-color: rgba(216,255,114,.4); background: rgba(216,255,114,.13); }
+.epg-programme:focus-visible { z-index: 4; outline: 2px solid #d8ff72; outline-offset: 1px; background: rgba(216,255,114,.16); }
 .epg-programme.is-current { border-color: rgba(216,255,114,.48); background: linear-gradient(120deg, rgba(216,255,114,.2), rgba(216,255,114,.08)); }
 .epg-programme strong { overflow: hidden; font-size: 8px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .epg-programme span { overflow: hidden; color: #8e9c80; font: 7px var(--mono); text-overflow: ellipsis; white-space: nowrap; }
