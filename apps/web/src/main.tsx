@@ -18,7 +18,8 @@ ReactDOM.createRoot(rootElement).render(
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((error: unknown) => {
+    const appBase = import.meta.env.BASE_URL;
+    void navigator.serviceWorker.register(`${appBase}sw.js`, { scope: appBase }).catch((error: unknown) => {
       console.warn("MIO offline shell registration failed:", error);
     });
   });

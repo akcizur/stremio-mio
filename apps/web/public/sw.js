@@ -1,5 +1,14 @@
-const CACHE_NAME = "mio-shell-v1";
-const APP_SHELL = ["/", "/mio.svg", "/manifest.webmanifest", "/offline.html"];
+const CACHE_NAME = "mio-shell-v2";
+const APP_ROOT = new URL("./", self.location.href);
+const APP_ROOT_PATH = APP_ROOT.pathname;
+const appUrl = (path = "") => new URL(path, APP_ROOT).toString();
+const APP_ASSETS_PATH = new URL("assets/", APP_ROOT).pathname;
+const APP_SHELL = [
+  appUrl(""),
+  appUrl("mio.svg"),
+  appUrl("manifest.webmanifest"),
+  appUrl("offline.html")
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -25,7 +34,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== APP_ROOT.origin || !url.pathname.startsWith(APP_ROOT_PATH)) return;
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {
@@ -33,20 +42,20 @@ self.addEventListener("fetch", (event) => {
         const response = await fetch(request);
         if (response.ok) {
           const cache = await caches.open(CACHE_NAME);
-          await cache.put("/", response.clone());
+          await cache.put(appUrl(""), response.clone());
         }
         return response;
       } catch {
-        return (await caches.match("/")) || (await caches.match("/offline.html"));
+        return (await caches.match(appUrl(""))) || (await caches.match(appUrl("offline.html")));
       }
     })());
     return;
   }
 
   const isAppAsset =
-    url.pathname.startsWith("/assets/") ||
-    url.pathname === "/mio.svg" ||
-    url.pathname === "/manifest.webmanifest";
+    url.pathname.startsWith(APP_ASSETS_PATH) ||
+    url.pathname === new URL("mio.svg", APP_ROOT).pathname ||
+    url.pathname === new URL("manifest.webmanifest", APP_ROOT).pathname;
 
   if (!isAppAsset) return;
 
