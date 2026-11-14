@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv } from "./index";
+import { getChannelFavoriteKey, getEpgMappingKey, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -186,5 +186,23 @@ describe("migrateLegacyIptvPlaylist", () => {
       id: "legacy-" + legacy.updatedAt.toString(36)
     });
     expect(migrateLegacyIptvPlaylist(legacy).id).toBe(migrated.id);
+  });
+});
+
+describe("getEpgMappingKey", () => {
+  it("scopes a normalized channel mapping to its playlist", () => {
+    const channel = {
+      tvgId: " CT1.CZ ",
+      url: "https://stream.example.test/live.m3u8"
+    };
+
+    expect(getEpgMappingKey("playlist A", channel)).toBe("playlist:playlist%20A:tvg:ct1.cz");
+    expect(getEpgMappingKey("playlist B", channel)).not.toBe(getEpgMappingKey("playlist A", channel));
+  });
+
+  it("uses the normalized stream URL when a TVG ID is unavailable", () => {
+    expect(getEpgMappingKey("playlist-1", {
+      url: "https://STREAM.example.test:443/live.m3u8"
+    })).toBe("playlist:playlist-1:url:https://stream.example.test/live.m3u8");
   });
 });

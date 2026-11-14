@@ -3,6 +3,7 @@ import { EpgGrid } from "./EpgGrid";
 import {
   IptvLocalRepository,
   getChannelFavoriteKey,
+  getEpgMappingKey,
   parseM3uPlaylist,
   parseXmltv,
   type M3uChannel,
@@ -27,6 +28,8 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   const [guide, setGuide] = useState<StoredXmltvGuide | null>(null);
   const [favoriteKeys, setFavoriteKeys] = useState<Set<string>>(() => new Set());
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [epgMappings, setEpgMappings] = useState<Record<string, string>>({});
+  const [mappingDrafts, setMappingDrafts] = useState<Record<string, string>>({});
   const [guideWarnings, setGuideWarnings] = useState<string[]>([]);
   const [guideError, setGuideError] = useState("");
   const [isReady, setIsReady] = useState(false);
@@ -39,9 +42,10 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       iptvRepository.loadPlaylists(),
       iptvRepository.loadActivePlaylistId(),
       iptvRepository.loadGuide(),
-      iptvRepository.loadFavoriteChannelKeys()
+      iptvRepository.loadFavoriteChannelKeys(),
+      iptvRepository.loadEpgMappings()
     ])
-      .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys]) => {
+      .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys, storedEpgMappings]) => {
         if (cancelled) return;
         setPlaylists(storedPlaylists);
         const selected = storedPlaylists.find((playlist) => playlist.id === storedActiveId) ?? storedPlaylists[0] ?? null;
@@ -51,6 +55,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         }
         if (storedGuide) setGuide(storedGuide);
         setFavoriteKeys(new Set(storedFavoriteKeys));
+        setEpgMappings(storedEpgMappings);
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
@@ -106,9 +111,36 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
     return map;
   }, [guide]);
 
+  const guideChannelOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const channel of guide?.channels ?? []) names.set(channel.id, channel.displayName);
+    for (const programme of guide?.programmes ?? []) {
+      if (!names.has(programme.channelId)) names.set(programme.channelId, programme.channelId);
+    }
+    return [...names.entries()]
+      .map(([id, displayName]) => ({ id, displayName }))
+      .sort((left, right) => left.displayName.localeCompare(right.displayName, "cs"));
+  }, [guide]);
+
+  const guideChannelIds = useMemo(
+    () => new Set(guideChannelOptions.map((item) => item.id)),
+    [guideChannelOptions]
+  );
+
+  function getResolvedGuideChannelId(channel: M3uChannel): string | undefined {
+    const mappingKey = activePlaylistId ? getEpgMappingKey(activePlaylistId, channel) : "";
+    const manualMapping = mappingKey ? epgMappings[mappingKey] : undefined;
+    if (manualMapping) return manualMapping;
+    if (channel.tvgId && guideChannelIds.has(channel.tvgId)) return channel.tvgId;
+    return undefined;
+  }
+
   const guideMatchedCount = useMemo(
-    () => channels.filter((channel) => channel.tvgId && guideByChannel.has(channel.tvgId)).length,
-    [channels, guideByChannel]
+    () => channels.filter((channel) => {
+      const channelId = getResolvedGuideChannelId(channel);
+      return Boolean(channelId && guideByChannel.has(channelId));
+    }).length,
+    [channels, guideByChannel, guideChannelIds, epgMappings, activePlaylistId]
   );
 
   const favoriteChannelCount = useMemo(
@@ -128,6 +160,35 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Oblíbené kanály se nepodařilo uložit.");
+    }
+  }
+
+  async function saveChannelEpgMapping(channel: M3uChannel, value: string) {
+    if (!activePlaylistId) return;
+    const normalized = value.trim();
+    if (normalized && !guideChannelIds.has(normalized)) {
+      setGuideError("XMLTV ID nebylo nalezeno. Vyber ID z nabídky našeptávače.");
+      return;
+    }
+
+    const key = getEpgMappingKey(activePlaylistId, channel);
+    const automaticId = channel.tvgId && guideChannelIds.has(channel.tvgId) ? channel.tvgId : "";
+    const nextMappings = { ...epgMappings };
+
+    if (!normalized || normalized === automaticId) delete nextMappings[key];
+    else nextMappings[key] = normalized;
+
+    try {
+      await iptvRepository.saveEpgMappings(nextMappings);
+      setEpgMappings(nextMappings);
+      setMappingDrafts((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+      setGuideError("");
+    } catch (cause) {
+      setGuideError(cause instanceof Error ? cause.message : "EPG párování se nepodařilo uložit.");
     }
   }
 
@@ -198,6 +259,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       };
       await iptvRepository.saveGuide(record);
       setGuide(record);
+      setMappingDrafts({});
       setGuideError("");
     } catch (cause) {
       setGuideError(cause instanceof Error ? cause.message : "XMLTV soubor se nepodařilo přečíst nebo uložit.");
@@ -214,6 +276,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       setSelectedGroup("Všechny skupiny");
       setSearch("");
       setFavoritesOnly(false);
+      setMappingDrafts({});
       setWarnings([]);
       setError("");
     } catch (cause) {
@@ -234,6 +297,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       setSelectedGroup("Všechny skupiny");
       setSearch("");
       setFavoritesOnly(false);
+      setMappingDrafts({});
       setWarnings([]);
       setError("");
     } catch (cause) {
@@ -253,8 +317,9 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   }
 
   function getProgramme(channel: M3uChannel): { current?: XmltvProgramme; next?: XmltvProgramme } {
-    if (!channel.tvgId) return {};
-    const programmes = guideByChannel.get(channel.tvgId) ?? [];
+    const guideChannelId = getResolvedGuideChannelId(channel);
+    if (!guideChannelId) return {};
+    const programmes = guideByChannel.get(guideChannelId) ?? [];
     const current = programmes.find((programme) => programme.start <= now && programme.stop > now);
     const next = programmes.find((programme) => programme.start >= (current?.stop ?? now));
     return {
@@ -262,6 +327,14 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       ...(next ? { next } : {})
     };
   }
+
+  const epgChannels = useMemo(
+    () => visibleChannels.flatMap((channel) => {
+      const guideChannelId = getResolvedGuideChannelId(channel);
+      return guideChannelId ? [{ ...channel, tvgId: guideChannelId }] : [];
+    }),
+    [visibleChannels, guideChannelIds, epgMappings, activePlaylistId]
+  );
 
   return (
     <div className="page-stack iptv-view">
@@ -363,6 +436,13 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
               {groups.map((group) => <option key={group}>{group}</option>)}
             </select>
           </div>
+          {guide && (
+            <datalist id="mio-epg-channel-options">
+              {guideChannelOptions.map((option) => (
+                <option key={option.id} value={option.id} label={option.displayName} />
+              ))}
+            </datalist>
+          )}
           <div className="iptv-table-head iptv-guide-head">
             <span>STANICE</span><span>SKUPINA</span><span>TVG ID</span><span>PRÁVĚ VYSÍLÁ</span><span>AKCE</span>
           </div>
@@ -370,6 +450,9 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
             const programme = getProgramme(channel);
             const favoriteKey = getChannelFavoriteKey(channel);
             const isFavorite = favoriteKeys.has(favoriteKey);
+            const mappingKey = activePlaylistId ? getEpgMappingKey(activePlaylistId, channel) : "";
+            const automaticMapping = channel.tvgId && guideChannelIds.has(channel.tvgId) ? channel.tvgId : "";
+            const mappingValue = mappingDrafts[mappingKey] ?? epgMappings[mappingKey] ?? automaticMapping;
             return (
               <div className="iptv-channel-row iptv-guide-row" key={channel.id}>
                 <div className="iptv-channel-name">
@@ -401,6 +484,23 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
                       <span>Začíná {new Date(programme.next.start).toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" })}</span>
                     </>
                   ) : <span className="programme-missing">{guide ? "Program nenalezen" : "Bez EPG"}</span>}
+                  {guide && (
+                    <label className="iptv-epg-map">
+                      <span>{epgMappings[mappingKey] ? "RUČNÍ PÁROVÁNÍ" : automaticMapping ? "TVG ID" : "PŘIŘADIT EPG"}</span>
+                      <input
+                        type="text"
+                        list="mio-epg-channel-options"
+                        value={mappingValue}
+                        placeholder="XMLTV channel ID"
+                        aria-label={"XMLTV channel ID pro " + channel.name}
+                        onChange={(event) => setMappingDrafts((current) => ({
+                          ...current,
+                          [mappingKey]: event.target.value
+                        }))}
+                        onBlur={() => void saveChannelEpgMapping(channel, mappingValue)}
+                      />
+                    </label>
+                  )}
                 </div>
                 <button className="small-button play-channel" onClick={() => onPlay(channel)}>Přehrát <span>↗</span></button>
               </div>
@@ -423,11 +523,11 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
         </div>
       )}
 
-      {guide && channels.length > 0 && <EpgGrid channels={visibleChannels} guide={guide} now={now} />}
+      {guide && channels.length > 0 && <EpgGrid channels={epgChannels} guide={guide} now={now} />}
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>
-        <p>Playlisty a EPG se ukládají lokálně do IndexedDB. Párování programu probíhá podle přesné shody M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
+        <p>Playlisty, EPG i ruční párování kanálů se ukládají lokálně do IndexedDB. Automatické párování používá shodu M3U tvg-id a XMLTV channel id; rozdílné identifikátory lze upravit přímo u stanice. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
       </div>
     </div>
   );

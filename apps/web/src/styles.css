@@ -211,3 +211,40 @@
     min-height: 38px;
   }
 }
+
+.iptv-epg-map {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+}
+.iptv-epg-map > span {
+  flex: 0 0 auto;
+  color: #74808b;
+  font: 7px var(--mono);
+  letter-spacing: .06em;
+}
+.iptv-epg-map input {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 4px;
+  outline: 0;
+  color: #b9c8a0;
+  background: rgba(0,0,0,.18);
+  font: 8px var(--mono);
+}
+.iptv-epg-map input:focus {
+  border-color: rgba(216,255,114,.42);
+  background: rgba(216,255,114,.035);
+}
+@media (max-width: 760px) {
+  .iptv-epg-map {
+    margin-left: 36px;
+  }
+  .iptv-epg-map input {
+    min-height: 30px;
+  }
+}

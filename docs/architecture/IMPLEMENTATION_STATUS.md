@@ -50,10 +50,11 @@ HLS webová implementace je první PoC, ne záruka kompatibility všech streamů
 - [x] validace XML a odmítnutí vlastních DTD/entity deklarací
 - [x] ignorování běžné externí XMLTV DTD bez síťového fetch
 - [x] povinný explicitní UTC offset a normalizace na UTC
-- [x] aktuální/následující pořad pro přesně spárované tvg-id
-- [x] čtyřhodinová EPG časová osa s výběrem pořadu a detailem
-- [ ] více playlistů, automatické obnovování a synchronizace
-- [ ] ruční channel mapping a plný EPG grid
+- [x] aktuální/následující pořad podle automatického nebo ručního párování kanálů
+- [x] ruční XMLTV channel mapping uložený per playlist v IndexedDB
+- [x] čtyřhodinová EPG časová osa respektující ruční párování
+- [ ] automatické obnovování a synchronizace playlistů
+- [ ] rozšířený celodenní EPG grid
 - [ ] programový detail a metadata pořadů
 
 ## Zdrojové konektory

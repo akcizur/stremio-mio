@@ -72,6 +72,13 @@ export function getChannelFavoriteKey(channel: Pick<M3uChannel, "tvgId" | "url">
   return "url:" + new URL(channel.url).href;
 }
 
+export function getEpgMappingKey(
+  playlistId: string,
+  channel: Pick<M3uChannel, "tvgId" | "url">
+): string {
+  return "playlist:" + encodeURIComponent(playlistId) + ":" + getChannelFavoriteKey(channel);
+}
+
 function splitExtInf(value: string): { metadata: string; title: string } {
   let quote: string | null = null;
 
@@ -486,6 +493,26 @@ export class IptvLocalRepository {
   async saveFavoriteChannelKeys(keys: string[]): Promise<void> {
     const uniqueKeys = [...new Set(keys.map((key) => key.trim()).filter(Boolean))];
     await this.put("favorite-channels", uniqueKeys);
+  }
+
+  async loadEpgMappings(): Promise<Record<string, string>> {
+    const stored = await this.get<unknown>("epg-mappings");
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
+
+    return Object.fromEntries(
+      Object.entries(stored as Record<string, unknown>)
+        .filter(([key, value]) => key.length > 0 && typeof value === "string" && value.trim().length > 0)
+        .map(([key, value]) => [key, (value as string).trim()])
+    );
+  }
+
+  async saveEpgMappings(mappings: Record<string, string>): Promise<void> {
+    const sanitized = Object.fromEntries(
+      Object.entries(mappings)
+        .filter(([key, value]) => key.length > 0 && typeof value === "string" && value.trim().length > 0)
+        .map(([key, value]) => [key, value.trim()])
+    );
+    await this.put("epg-mappings", sanitized);
   }
 
   async clearGuide(): Promise<void> {
