@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "MIO · Media Interface Options",
+  "short_name": "MIO",
+  "description": "Osobní mediální knihovna, přehrávač a katalog.",
+  "lang": "cs",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090b10",
+  "theme_color": "#090b10",
+  "icons": [
+    {
+      "src": "/mio.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
