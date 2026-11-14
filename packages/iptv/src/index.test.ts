@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getChannelFavoriteKey, getEpgMappingKey, getEpgReminderId, getLocalDayRange, isEpgReminderDue, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId, sortEpgReminders, type EpgReminder } from "./index";
+import { createDemoIptvData, DEMO_HLS_URL, getChannelFavoriteKey, getEpgMappingKey, getEpgReminderId, getLocalDayRange, isEpgReminderDue, migrateLegacyIptvPlaylist, parseM3uPlaylist, parseXmltv, resolveEpgChannelId, sortEpgReminders, type EpgReminder } from "./index";
 
 describe("parseM3uPlaylist", () => {
   it("parses channel names, quoted attributes and groups", () => {
@@ -296,5 +296,35 @@ describe("EPG reminders", () => {
     const sorted = sortEpgReminders([later, reminder]);
     expect(sorted.map((entry) => entry.id)).toEqual([reminder.id, "later"]);
     expect([later.id, reminder.id]).toEqual(["later", reminder.id]);
+  });
+});
+
+
+describe("createDemoIptvData", () => {
+  it("provides a playable demo channel and a current EPG schedule", () => {
+    const now = Date.UTC(2026, 10, 14, 16, 17);
+    const demo = createDemoIptvData(now);
+    const channel = demo.playlist.channels[0];
+
+    expect(demo.playlist).toMatchObject({
+      id: "mio-demo-playlist",
+      isDemo: true,
+      name: "MIO Demo · Cinema"
+    });
+    expect(channel).toMatchObject({
+      tvgId: "mio.demo.cinema",
+      url: DEMO_HLS_URL
+    });
+    expect(demo.guide).toMatchObject({ isDemo: true, name: "MIO Demo · EPG" });
+    expect(demo.guide.programmes).toHaveLength(10);
+    expect(demo.guide.programmes.some((programme) => programme.start <= now && programme.stop > now)).toBe(true);
+    expect(demo.guide.programmes.every((programme) => programme.channelId === channel?.tvgId)).toBe(true);
+  });
+
+  it("keeps the demo schedule relative to the supplied timestamp", () => {
+    const now = Date.UTC(2026, 10, 15, 8, 43);
+    const demo = createDemoIptvData(now);
+    expect(demo.guide.programmes.some((programme) => programme.start <= now && programme.stop > now)).toBe(true);
+    expect(demo.guide.programmes.every((programme) => programme.stop - programme.start === 30 * 60_000)).toBe(true);
   });
 });

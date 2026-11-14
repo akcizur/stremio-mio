@@ -47,14 +47,15 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
+    iptvRepository.initializeDemoDataIfEmpty()
+      .then(() => Promise.all([
       iptvRepository.loadPlaylists(),
       iptvRepository.loadActivePlaylistId(),
       iptvRepository.loadGuide(),
       iptvRepository.loadFavoriteChannelKeys(),
       iptvRepository.loadEpgMappings(),
       iptvRepository.loadEpgReminders()
-    ])
+      ]))
       .then(([storedPlaylists, storedActiveId, storedGuide, storedFavoriteKeys, storedEpgMappings, storedReminders]) => {
         if (cancelled) return;
         setPlaylists(storedPlaylists);
@@ -471,7 +472,7 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
       <section className="iptv-import-card">
         <div className="iptv-import-copy">
           <span className="section-kicker">PLAYLIST MANAGER</span>
-          <h2>{playlistName || "Připojit playlist"}</h2>
+          <h2>{playlistName || "Připojit playlist"}{activePlaylist?.isDemo && <span className="iptv-demo-tag">FUNKČNÍ DEMO</span>}</h2>
           <p>{isReady
             ? playlists.length + " uložených playlistů · data zůstávají v tomto zařízení"
             : "Načítám lokální úložiště…"}</p>
@@ -705,7 +706,9 @@ export function IptvScreen({ onPlay }: IptvScreenProps) {
 
       <div className="iptv-note">
         <strong>Aktuální omezení</strong>
-        <p>Playlisty, EPG, ruční párování i připomínky se ukládají lokálně do IndexedDB. Připomínky se kontrolují v otevřené aplikaci a mohou použít oznámení prohlížeče; po úplném zavření MIO není bez serverového push nebo nativního plánovače zaručené upozornění. Automatické párování používá shodu M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované.</p>
+        <p>{activePlaylist?.isDemo
+          ? "Toto demo používá jeden veřejný HLS testovací stream a vygenerovaný ukázkový EPG. Nejde o skutečné televizní stanice ani živé programové informace. Playlist, oblíbené kanály, EPG a připomínky se ukládají lokálně v tomto prohlížeči; můžeš je nahradit vlastními soubory M3U a XMLTV."
+          : "Playlisty, EPG, ruční párování i připomínky se ukládají lokálně do IndexedDB. Připomínky se kontrolují v otevřené aplikaci a mohou použít oznámení prohlížeče; po úplném zavření MIO není bez serverového push nebo nativního plánovače zaručené upozornění. Automatické párování používá shodu M3U tvg-id a XMLTV channel id. Webový přehrávač podporuje HTTP(S) zdroje a HLS; RTSP, DRM, autentizační hlavičky a cloudová synchronizace zatím nejsou implementované."}</p>
       </div>
     </div>
   );

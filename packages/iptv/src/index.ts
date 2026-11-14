@@ -64,6 +64,7 @@ export interface StoredIptvPlaylist {
   name: string;
   updatedAt: number;
   channels: M3uChannel[];
+  isDemo?: boolean;
 }
 
 export type LegacyStoredIptvPlaylist = Omit<StoredIptvPlaylist, "id">;
@@ -82,6 +83,73 @@ export interface StoredXmltvGuide {
   updatedAt: number;
   channels: XmltvChannel[];
   programmes: XmltvProgramme[];
+  isDemo?: boolean;
+}
+
+export interface DemoIptvData {
+  playlist: StoredIptvPlaylist;
+  guide: StoredXmltvGuide;
+}
+
+export const DEMO_HLS_URL = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
+
+export function createDemoIptvData(now = Date.now()): DemoIptvData {
+  const timestamp = Number.isFinite(now) ? now : Date.now();
+  const channelId = "mio.demo.cinema";
+  const channelName = "MIO Demo Cinema";
+  const interval = 30 * 60_000;
+  const firstStart = Math.floor(timestamp / interval) * interval - interval;
+  const sampleProgrammes = [
+    { title: "MIO Cinema · Ukázkový přenos", category: "Film", description: "Veřejná ukázka HLS přehrávání. Nejde o skutečné televizní vysílání." },
+    { title: "Player Lab · Adaptivní stream", category: "Technologie", description: "Testovací pořad pro ověření načítání manifestu a přehrávání HLS." },
+    { title: "MIO Cinema · Obraz a zvuk", category: "Film", description: "Ukázková položka programu navázaná na veřejný testovací stream." },
+    { title: "MIO Lab · Přepnutí kvality", category: "Technologie", description: "Časová osa EPG a detail pořadu fungují nad lokálními demonstračními daty." },
+    { title: "MIO Cinema · Večerní projekce", category: "Film", description: "Veřejný HLS vzorek může být kdykoli nahrazen vlastním M3U playlistem." },
+    { title: "MIO Lab · Test přehrávače", category: "Technologie", description: "Ukázka detailu programu, připomínky a spuštění stanice." },
+    { title: "MIO Cinema · Další ukázka", category: "Film", description: "Demonstrační EPG se při další návštěvě aktualizuje podle lokálního času." },
+    { title: "MIO Lab · Závěrečný blok", category: "Technologie", description: "Jde o vzorová metadata, nikoli o redakční televizní program." },
+    { title: "MIO Cinema · Noční projekce", category: "Film", description: "Ukázkový záznam EPG pro horizontální i celodenní navigaci." },
+    { title: "MIO Lab · Volný test", category: "Technologie", description: "Přehraj stream nebo nahraj vlastní soubor M3U a XMLTV." }
+  ];
+
+  const channel: M3uChannel = {
+    id: "mio-demo-cinema-1",
+    name: channelName,
+    tvgId: channelId,
+    tvgName: channelName,
+    url: DEMO_HLS_URL,
+    group: "Demo · VOD"
+  };
+
+  const programmes = sampleProgrammes.map((sample, index) => {
+    const start = firstStart + index * interval;
+    return {
+      id: channelId + ":" + start + ":" + sample.title,
+      channelId,
+      title: sample.title,
+      categories: [sample.category],
+      description: sample.description,
+      start,
+      stop: start + interval
+    };
+  });
+
+  return {
+    playlist: {
+      id: "mio-demo-playlist",
+      name: "MIO Demo · Cinema",
+      updatedAt: timestamp,
+      channels: [channel],
+      isDemo: true
+    },
+    guide: {
+      name: "MIO Demo · EPG",
+      updatedAt: timestamp,
+      channels: [{ id: channelId, displayName: channelName }],
+      programmes,
+      isDemo: true
+    }
+  };
 }
 
 export interface EpgReminder {
@@ -515,6 +583,26 @@ export function parseXmltv(input: string): XmltvParseResult {
 
 export class IptvLocalRepository {
   private databasePromise: Promise<IDBDatabase> | null = null;
+
+  async initializeDemoDataIfEmpty(): Promise<void> {
+    const initialized = await this.get<boolean>("demo-data-initialized");
+    const [playlists, guide] = await Promise.all([this.loadPlaylists(), this.loadGuide()]);
+
+    if (initialized !== true && playlists.length === 0 && !guide) {
+      const demo = createDemoIptvData();
+      await this.savePlaylist(demo.playlist);
+      await this.saveGuide(demo.guide);
+      await this.saveActivePlaylistId(demo.playlist.id);
+    } else {
+      const hasDemoPlaylist = playlists.some((playlist) => playlist.isDemo);
+      const demoGuideIsStale = guide?.isDemo === true && Date.now() - guide.updatedAt > 6 * 60 * 60_000;
+      if (hasDemoPlaylist && demoGuideIsStale) {
+        await this.saveGuide(createDemoIptvData().guide);
+      }
+    }
+
+    if (initialized !== true) await this.put("demo-data-initialized", true);
+  }
 
   async loadPlaylists(): Promise<StoredIptvPlaylist[]> {
     const stored = await this.get<unknown>("playlists");
