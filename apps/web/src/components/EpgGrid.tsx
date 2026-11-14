@@ -96,7 +96,11 @@ export function EpgGrid({ channels, guide, now, onPlay }: EpgGridProps) {
   }
 
   function shiftDay(offset: number) {
-    const [year, month, day] = selectedDate.split("-").map(Number);
+    const [yearText, monthText, dayText] = selectedDate.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
+    const day = Number(dayText);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return;
     setSelectedDate(toDateInputValue(new Date(year, month - 1, day + offset).getTime()));
     setSelected(null);
   }
