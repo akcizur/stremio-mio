@@ -525,17 +525,6 @@ function LibraryScreen({
   );
 }
 
-function ModuleCard({ number, title, detail, state }: { number: string; title: string; detail: string; state: string }) {
-  return (
-    <article className="module-card">
-      <div className="module-top"><span>{number} / MODULE</span><span className="module-state">{state}</span></div>
-      <h3>{title}</h3>
-      <p>{detail}</p>
-      <div className="module-line" />
-    </article>
-  );
-}
-
 interface PlayerLabProps {
   urlDraft: string;
   source: PlayableSource | null;
