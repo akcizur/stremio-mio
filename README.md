@@ -6,6 +6,18 @@ Cíl: sjednotit katalog filmů a seriálů, osobní knihovnu, vyhledávání, hi
 
 Projekt postupuje po funkčních vertikálních částech. Web je první implementační platforma; nativní přehrávače zůstávají samostatnými adaptéry pro jednotlivé systémy.
 
+## Funkční demo · GitHub Pages
+
+**[Spustit MIO demo](https://akcizur.github.io/stremio-mio/)**
+
+- Demo se při prvním otevření IPTV sekce samo naplní ukázkovým M3U playlistem a EPG.
+- Na úvodní stránce lze přímo spustit veřejný HLS testovací klip nebo otevřít IPTV + EPG.
+- Fungují lokální oblíbené kanály, import vlastního M3U/XMLTV, denní program, detail pořadu, připomínky, Player Lab a historie sledování.
+- Data se ukládají do IndexedDB daného prohlížeče. Neexistuje společný cloudový účet ani synchronizace mezi zařízeními.
+- Ukázkový stream je veřejný testovací HLS zdroj Big Buck Bunny; demo kanál a EPG nejsou skutečné televizní vysílání.
+
+Publikování zajišťuje workflow `.github/workflows/pages.yml` při změně `main`. V nastavení repozitáře musí být **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
 ## Aktuální stav
 
 - [x] Architektonický výzkum a dokumentace
@@ -36,7 +48,7 @@ Projekt postupuje po funkčních vertikálních částech. Web je první impleme
 | Mobilní obal | Capacitor 8.6.2 scaffold; AVPlayer / Media3 bridge zatím chybí |
 | Desktop | Tauri 2.12.3 scaffold; MPV/libmpv PoC zatím chybí |
 
-Mobilní Capacitor a desktopový Tauri shell mají počáteční konfigurační scaffold. Nativní projekty iOS/Android zatím nejsou vygenerované, Tauri binárka ještě nebyla sestavena a žádný nativní video bridge není hotový.
+Mobilní Capacitor a desktopový Tauri shell mají počáteční konfigurační scaffold. CI generuje Android/iOS projekty, vytváří Android debug APK, sestavuje iOS Simulator aplikaci a kontroluje Tauri Rust shell pro Windows/Linux. Nativní video bridge AVPlayer, Media3 ani MPV/libmpv zatím hotový není.
 
 ## Spuštění
 

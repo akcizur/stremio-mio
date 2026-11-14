@@ -28,3 +28,12 @@ Z kořene repozitáře spusť:
 - DRM, vlastní request headers, externí titulky a nativní bridge nejsou součástí tohoto prvního PoC.
 
 Tato aplikace je základ pro testování rozhraní. Nejde o finální přehrávač ani o katalog s reálnými zdroji.
+
+
+## GitHub Pages demo
+
+Nasazená ukázka: https://akcizur.github.io/stremio-mio/
+
+Publikační workflow sestaví Vite s podadresářovou základní cestou `/stremio-mio/`, vytvoří Pages artifact a nasadí jej při pushi do `main`. Stejný projekt přitom v lokálním vývoji používá kořenovou cestu `/`.
+
+Při prvním otevření IPTV sekce se v prázdném lokálním úložišti vytvoří vzorový M3U playlist a průběžně generované EPG. Stream je veřejný testovací HLS klip, ne skutečný televizní kanál.

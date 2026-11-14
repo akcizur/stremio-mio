@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LibraryEntry, PlaybackHistoryEntry } from "@mio/library";
 import { IndexedDbLibraryRepository, sortPlaybackHistory } from "@mio/library";
-import type { M3uChannel } from "@mio/iptv";
+import { DEMO_HLS_URL, type M3uChannel } from "@mio/iptv";
 import type { PlayableSource } from "@mio/player-contract";
 import { parsePlayableUrl } from "@mio/player-contract";
 import { IptvScreen } from "./components/IptvScreen";
@@ -33,7 +33,6 @@ const mediaCards: MediaCard[] = [
   { id: "signal", title: "Signal / Lost", subtitle: "Mystery · 2024", category: "SÉRIE", tone: "green" }
 ];
 
-const demoHlsUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 const libraryRepository = new IndexedDbLibraryRepository();
 
 function formatPlaybackTime(seconds: number): string {
@@ -163,6 +162,11 @@ export function App() {
     });
   }, [source]);
 
+  function playDemo(title = "Big Buck Bunny · MIO HLS Demo") {
+    setUrlDraft(DEMO_HLS_URL);
+    loadStream(DEMO_HLS_URL, title);
+  }
+
   function loadStream(value: string, title?: string, startAtSeconds = 0) {
     const result = parsePlayableUrl(value);
     if (!result.ok) {
@@ -283,7 +287,8 @@ export function App() {
               cards={visibleCards}
               savedIds={savedIds}
               onToggleSaved={toggleSaved}
-              onOpenPlayer={() => setActiveSection("player")}
+              onPlayDemo={playDemo}
+              onOpenIptv={() => setActiveSection("iptv")}
               searchQuery={searchQuery}
             />
           )}
@@ -313,7 +318,7 @@ export function App() {
               onProgress={handlePlaybackProgress}
               onDraftChange={setUrlDraft}
               onLoad={loadStream}
-              onLoadDemo={() => { setUrlDraft(demoHlsUrl); loadStream(demoHlsUrl, "Mux HLS test stream"); }}
+              onLoadDemo={() => playDemo()}
             />
           )}
 
@@ -330,11 +335,12 @@ interface DiscoverProps {
   cards: MediaCard[];
   savedIds: Set<string>;
   onToggleSaved: (item: MediaCard) => void;
-  onOpenPlayer: () => void;
+  onPlayDemo: (title?: string) => void;
+  onOpenIptv: () => void;
   searchQuery: string;
 }
 
-function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }: DiscoverProps) {
+function Discover({ cards, savedIds, onToggleSaved, onPlayDemo, onOpenIptv, searchQuery }: DiscoverProps) {
   return (
     <div className="page-stack">
       <section className="hero-panel">
@@ -342,13 +348,14 @@ function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }:
         <div className="hero-orbit orbit-one" />
         <div className="hero-orbit orbit-two" />
         <div className="hero-content">
-          <div className="eyebrow"><span /> MEDIA INTERFACE OPTIONS <b>WEB PREVIEW</b></div>
+          <div className="eyebrow"><span /> MEDIA INTERFACE OPTIONS <b>FUNKČNÍ WEB DEMO</b></div>
           <h1>Všechna média.<br /><em>Jedno místo.</em></h1>
-          <p>Vlastní mediální prostor pro vaše katalogy, knihovnu, živé vysílání a přehrávání napříč zařízeními.</p>
-          <div className="hero-actions">
-            <button className="button-primary" onClick={onOpenPlayer}>Otevřít Player Lab <span>↗</span></button>
-            <span className="hero-footnote">PRVNÍ WEBOVÁ VERTIKÁLA · 0.1.0</span>
+          <p>Vyzkoušej HLS přehrávač, IPTV kanál, celodenní EPG, připomínky a lokální knihovnu. Bez účtu a bez serverové databáze.</p>
+          <div className="hero-actions hero-demo-actions">
+            <button className="button-primary" onClick={() => onPlayDemo()}>Přehrát ukázku <span>↗</span></button>
+            <button className="button-secondary hero-demo-secondary" onClick={onOpenIptv}>Otevřít IPTV + EPG</button>
           </div>
+          <span className="hero-footnote">VEŘEJNÝ HLS TEST STREAM · DATA ZŮSTÁVAJÍ V TOMTO PROHLÍŽEČI</span>
         </div>
         <div className="hero-side-note"><span>01</span><i /> ONE INTERFACE<br />MULTIPLE SOURCES</div>
         <div className="hero-bottom-label">MIO / LOCAL-FIRST MEDIA WORKSPACE</div>
@@ -356,7 +363,7 @@ function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }:
 
       <section className="section-block">
         <div className="section-heading">
-          <div><span className="section-kicker">VAŠE CENTRÁLA</span><h2>Prozkoumat</h2></div>
+          <div><span className="section-kicker">UKÁZKOVÝ KATALOG</span><h2>Prozkoumat</h2></div>
           <span className="demo-label"><span /> UKÁZKOVÁ DATA</span>
         </div>
         <div className="media-grid">
@@ -374,12 +381,12 @@ function Discover({ cards, savedIds, onToggleSaved, onOpenPlayer, searchQuery }:
                 >{savedIds.has(item.id) ? "♥" : "♡"}</button>
                 <span className="poster-glyph">{item.title.slice(0, 1)}</span>
               </div>
-              <div className="media-card-meta"><div><strong>{item.title}</strong><span>{item.subtitle}</span></div><button onClick={onOpenPlayer} aria-label={"Otevřít Player Lab pro " + item.title}>↗</button></div>
+              <div className="media-card-meta"><div><strong>{item.title}</strong><span>{item.subtitle}</span></div><button onClick={() => onPlayDemo(item.title + " · HLS demo")} aria-label={"Přehrát funkční demo pro " + item.title}>↗</button></div>
             </article>
           ))}
           {cards.length === 0 && <div className="empty-search">Pro „{searchQuery}“ tu zatím nic není.</div>}
         </div>
-        <p className="data-disclaimer">Toto jsou pouze demonstrační položky. Skutečné katalogy a metadata zatím nejsou připojené.</p>
+        <p className="data-disclaimer">Katalogové karty a metadata jsou ukázková data. Přehrávání používá veřejný HLS testovací klip; IPTV demo má samostatný ukázkový playlist a dynamické EPG.</p>
       </section>
 
       <section className="section-block">

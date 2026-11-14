@@ -363,3 +363,13 @@
   .epg-modal-actions { flex-direction: column; }
   .epg-modal-actions button { width: 100%; }
 }
+
+
+/* GitHub Pages functional demo entry points */
+.hero-demo-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.hero-demo-secondary { min-height: 41px; justify-content: center; padding: 0 13px; }
+.iptv-demo-tag { display: inline-flex; align-items: center; margin-left: 9px; padding: 4px 7px; border: 1px solid rgba(216,255,114,.25); border-radius: 4px; color: var(--accent); background: rgba(216,255,114,.06); font: 7px var(--mono); letter-spacing: .08em; vertical-align: middle; }
+@media (max-width: 640px) {
+  .hero-demo-actions { align-items: stretch; flex-direction: column; }
+  .hero-demo-actions > button { width: 100%; justify-content: center; }
+}
