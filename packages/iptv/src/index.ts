@@ -262,15 +262,14 @@ function parseXmltvTimestamp(value: string): number | null {
     date.getUTCSeconds() !== Number(second)
   ) return null;
 
-  if (sign && offsetHour && offsetMinute) {
-    const hours = Number(offsetHour);
-    const minutes = Number(offsetMinute);
-    if (hours > 14 || minutes > 59) return null;
-    const offset = (hours * 60 + minutes) * 60_000 * (sign === "+" ? 1 : -1);
-    return timestamp - offset;
-  }
+  if (!sign || !offsetHour || !offsetMinute) return null;
 
-  return timestamp;
+  const hours = Number(offsetHour);
+  const minutes = Number(offsetMinute);
+  if (hours > 14 || minutes > 59) return null;
+
+  const offset = (hours * 60 + minutes) * 60_000 * (sign === "+" ? 1 : -1);
+  return timestamp - offset;
 }
 
 const xmlParser = new XMLParser({
