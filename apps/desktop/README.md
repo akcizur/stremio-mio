@@ -18,7 +18,7 @@ Oficiální prerequisites: https://tauri.app/start/prerequisites/
 ## Spuštění z kořene repozitáře
 
 ```bash
-npm install
+npm ci
 npm run desktop:dev
 ```
 

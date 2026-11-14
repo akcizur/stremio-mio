@@ -42,7 +42,7 @@ Požadavky: Node.js 26.13.1 LTS a npm 11+.
 
 Z kořene repozitáře:
 
-    npm install
+    npm ci
     npm run dev
 
 Kontrola projektu:
@@ -65,7 +65,7 @@ Desktopový Tauri shell (vyžaduje Rust a systémové závislosti):
     npm run desktop:dev
     npm run desktop:build
 
-iOS build vyžaduje macOS + Xcode. Tyto příkazy jsou připravené, ale native builds zatím nejsou ověřené.
+iOS build vyžaduje macOS + Xcode. Nativní platformní buildy ověřuje samostatný workflow `MIO Native Shell CI`; MPV/libmpv video integrace zatím hotová není.
 
 ## Dokumentace
 

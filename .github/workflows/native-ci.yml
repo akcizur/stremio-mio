@@ -1,0 +1,165 @@
+name: MIO Native Shell CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "apps/desktop/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/native-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "apps/desktop/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/native-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android Capacitor debug build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install Android SDK packages
+        run: |
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build shared web app
+        run: npm run build --workspace=@mio/web
+
+      - name: Generate Android project
+        run: npm run add:android --workspace=@mio/mobile
+
+      - name: Sync Capacitor Android
+        run: npm run sync:android --workspace=@mio/mobile
+
+      - name: Assemble debug APK
+        run: ./gradlew assembleDebug
+        working-directory: apps/mobile/android
+
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: mio-android-debug
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS Simulator build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build shared web app
+        run: npm run build --workspace=@mio/web
+
+      - name: Generate iOS project
+        run: npm run add:ios --workspace=@mio/mobile
+
+      - name: Sync Capacitor iOS
+        run: npm run sync:ios --workspace=@mio/mobile
+
+      - name: Build iOS Simulator app
+        run: |
+          xcodebuild \
+            -workspace apps/mobile/ios/App/App.xcworkspace \
+            -scheme App \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/mio-ios-derived" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  desktop:
+    name: Tauri desktop compile
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Build shared web app
+        run: npm run build --workspace=@mio/web
+
+      - name: Check Tauri Rust shell
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

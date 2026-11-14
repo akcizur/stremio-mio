@@ -15,7 +15,7 @@ Tato složka obsahuje pouze Capacitor konfiguraci a závislosti. Platformní pro
 ## První příprava z kořene repozitáře
 
 ```bash
-npm install
+npm ci
 npm run build --workspace=@mio/web
 npm run add:android --workspace=@mio/mobile
 npm run add:ios --workspace=@mio/mobile
